@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from apps.api.deps import get_db
-from apps.worker.queue import enqueue_pipeline
+from apps.worker.job_queue import enqueue_pipeline
 from core.contracts.jobs import JobCreateRequest, JobOut
 from db.models.document import Document
 from db.models.job import Job

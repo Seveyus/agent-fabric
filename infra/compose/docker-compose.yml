@@ -50,6 +50,9 @@ services:
 
   ollama:
     image: ollama/ollama:latest
+    extra_hosts:
+      - "registry.ollama.ai:104.21.75.227"
+      - "registry.ollama.ai:172.67.182.229"
     ports:
       - "11434:11434"
     volumes:

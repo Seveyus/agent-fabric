@@ -1,4 +1,5 @@
 import json
+
 from redis import Redis
 
 from apps.api.config import settings

@@ -22,7 +22,7 @@ class ChunkerEmbedAgent:
             vectors = embed_texts(chunks)
             for idx, (text, vector) in enumerate(zip(chunks, vectors)):
                 chunk_id = f"chunk_{uuid4().hex[:12]}"
-                point_id = f"point_{uuid4().hex[:12]}"
+                point_id = str(uuid4())
                 chunk = Chunk(
                     id=chunk_id,
                     document_id=item["document_id"],

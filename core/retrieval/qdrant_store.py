@@ -24,4 +24,12 @@ class QdrantStore:
         self.client.upsert(collection_name=self.collection, points=points)
 
     def search(self, vector: list[float], limit: int = 5):
+        # qdrant-client recent versions expose `query_points`; older ones exposed `search`.
+        if hasattr(self.client, "query_points"):
+            result = self.client.query_points(
+                collection_name=self.collection,
+                query=vector,
+                limit=limit,
+            )
+            return getattr(result, "points", result)
         return self.client.search(collection_name=self.collection, query_vector=vector, limit=limit)

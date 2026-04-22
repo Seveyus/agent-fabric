@@ -1,7 +1,7 @@
 import logging
 import time
 
-from apps.worker.queue import dequeue_pipeline
+from apps.worker.job_queue import dequeue_pipeline
 from core.orchestrator.engine import OrchestratorEngine
 
 logger = logging.getLogger("agent_fabric.worker")

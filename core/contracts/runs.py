@@ -10,6 +10,8 @@ class ArtifactOut(BaseModel):
     path: str
     content_type: str
 
+    model_config = {"from_attributes": True}
+
 
 class RunOut(BaseModel):
     id: str
