@@ -24,6 +24,7 @@ make seed
 ```
 
 API docs: `http://localhost:8000/docs`
+Dashboard: `http://localhost:8000/dashboard`
 
 ## Main flow
 1. Create a job with uploaded files
@@ -42,6 +43,15 @@ API docs: `http://localhost:8000/docs`
 2. Trigger telemetry collection for a repo (`owner/repo`) or Jira project key (`ENG`)
 3. Persist a telemetry snapshot with normalized metrics and a risk score
 4. Read snapshots back through the API and compare them over time
+
+## Dashboard V1
+The dashboard is a lightweight UI served directly by FastAPI. It lets you:
+- inspect the latest telemetry and document risk snapshots
+- create GitHub or Jira integrations
+- trigger one telemetry collection manually
+- review recent pipeline runs
+
+After `make seed`, the dashboard includes one demo GitHub snapshot so the UI is not empty.
 
 ## Example API usage
 Create a GitHub connection:

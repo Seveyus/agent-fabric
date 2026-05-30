@@ -1,11 +1,12 @@
 import logging
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from apps.api.config import settings
 from apps.api.middleware.logging import AccessLogMiddleware
 from apps.api.middleware.request_id import RequestIdMiddleware
-from apps.api.routers import files, health, integrations, jobs, pipelines, runs, telemetry
+from apps.api.routers import dashboard, files, health, integrations, jobs, pipelines, runs, telemetry
 
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper(), logging.INFO),
@@ -16,8 +17,10 @@ app = FastAPI(title=settings.app_name)
 
 app.add_middleware(RequestIdMiddleware)
 app.add_middleware(AccessLogMiddleware)
+app.mount("/static", StaticFiles(directory="apps/web"), name="static")
 
 app.include_router(health.router)
+app.include_router(dashboard.router)
 app.include_router(files.router)
 app.include_router(jobs.router)
 app.include_router(runs.router)

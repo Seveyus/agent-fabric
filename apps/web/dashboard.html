@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Project Risk Dashboard</title>
+  <link rel="stylesheet" href="/static/dashboard.css" />
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Project Risk Intelligence</p>
+        <h1>Delivery risk, evidence, and project drift in one view.</h1>
+        <p class="hero-text">
+          Connect GitHub and Jira, collect live telemetry, and compare it with document-based risk
+          snapshots from your pipeline runs.
+        </p>
+      </div>
+      <div class="hero-actions">
+        <a class="button button-primary" href="/docs">Open API Docs</a>
+        <button id="refreshButton" class="button button-secondary" type="button">Refresh Dashboard</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel metrics-panel">
+        <div class="panel-head">
+          <h2>At a glance</h2>
+          <p>Current data coverage across integrations, telemetry and runs.</p>
+        </div>
+        <div id="summaryGrid" class="summary-grid"></div>
+      </section>
+
+      <section class="panel form-panel">
+        <div class="panel-head">
+          <h2>Add integration</h2>
+          <p>Create a GitHub or Jira connection directly from the dashboard.</p>
+        </div>
+        <form id="integrationForm" class="stack">
+          <label>
+            <span>Provider</span>
+            <select name="provider" required>
+              <option value="github">GitHub</option>
+              <option value="jira">Jira</option>
+            </select>
+          </label>
+          <label>
+            <span>Name</span>
+            <input name="name" placeholder="GitHub Prod" required />
+          </label>
+          <label>
+            <span>Base URL</span>
+            <input name="base_url" placeholder="https://api.github.com" required />
+          </label>
+          <label>
+            <span>Token</span>
+            <input name="auth_token" type="password" placeholder="Bearer or API token" required />
+          </label>
+          <button class="button button-primary" type="submit">Create connection</button>
+        </form>
+      </section>
+
+      <section class="panel form-panel">
+        <div class="panel-head">
+          <h2>Collect telemetry</h2>
+          <p>Run one collection against a GitHub repo or Jira project key.</p>
+        </div>
+        <form id="collectForm" class="stack">
+          <label>
+            <span>Connection</span>
+            <select id="connectionSelect" name="connection_id" required></select>
+          </label>
+          <label>
+            <span>Project reference</span>
+            <input name="project_ref" placeholder="owner/repo or ENG" required />
+          </label>
+          <button class="button button-primary" type="submit">Collect snapshot</button>
+        </form>
+      </section>
+
+      <section class="panel wide-panel">
+        <div class="panel-head">
+          <h2>Active projects</h2>
+          <p>Latest telemetry snapshot per tracked project.</p>
+        </div>
+        <div id="projectsGrid" class="projects-grid"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Latest telemetry</h2>
+          <p>Risk-scored GitHub and Jira collections.</p>
+        </div>
+        <div id="telemetryList" class="list-stack"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Document snapshots</h2>
+          <p>Risk snapshots produced by the document pipeline.</p>
+        </div>
+        <div id="documentSnapshotList" class="list-stack"></div>
+      </section>
+
+      <section class="panel wide-panel">
+        <div class="panel-head">
+          <h2>Recent runs</h2>
+          <p>Operational trace of the project risk pipeline.</p>
+        </div>
+        <div id="runsTable" class="table-wrap"></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="/static/dashboard.js"></script>
+</body>
+</html>
