@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from apps.api.config import settings
 from apps.api.middleware.logging import AccessLogMiddleware
 from apps.api.middleware.request_id import RequestIdMiddleware
-from apps.api.routers import files, health, jobs, pipelines, runs
+from apps.api.routers import files, health, integrations, jobs, pipelines, runs, telemetry
 
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper(), logging.INFO),
@@ -22,3 +22,5 @@ app.include_router(files.router)
 app.include_router(jobs.router)
 app.include_router(runs.router)
 app.include_router(pipelines.router)
+app.include_router(integrations.router)
+app.include_router(telemetry.router)
