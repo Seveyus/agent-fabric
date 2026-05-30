@@ -8,6 +8,7 @@ def persist_project_snapshot(db, run_id: str, snapshot: dict) -> ProjectSnapshot
     row = ProjectSnapshot(
         id=f"snapshot_{uuid4().hex[:12]}",
         run_id=run_id,
+        project_ref=snapshot.get("project_ref"),
         snapshot_date=snapshot.get("snapshot_date", date.today()),
         total_documents=snapshot["total_documents"],
         total_chunks=snapshot["total_chunks"],

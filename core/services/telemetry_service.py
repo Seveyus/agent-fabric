@@ -1,5 +1,6 @@
 from uuid import uuid4
 
+from core.services.knowledge_graph_service import ingest_telemetry_snapshot_into_graph
 from core.integrations.github_client import GitHubTelemetryClient
 from core.integrations.jira_client import JiraTelemetryClient
 from db.models.integration_connection import IntegrationConnection
@@ -29,6 +30,7 @@ def collect_telemetry_snapshot(db, connection: IntegrationConnection, project_re
     db.add(snapshot)
     db.commit()
     db.refresh(snapshot)
+    ingest_telemetry_snapshot_into_graph(db, snapshot)
     return snapshot
 
 

@@ -34,6 +34,24 @@
 
       <section class="panel form-panel">
         <div class="panel-head">
+          <h2>Knowledge search</h2>
+          <p>Hybrid search across graph memory, telemetry and document snapshots.</p>
+        </div>
+        <form id="searchForm" class="stack">
+          <label>
+            <span>Query</span>
+            <input name="query" placeholder="blocked tickets, stale PRs, ownership gap" required />
+          </label>
+          <label>
+            <span>Project reference</span>
+            <input name="project_ref" placeholder="Optional: owner/repo or ENG" />
+          </label>
+          <button class="button button-primary" type="submit">Search knowledge</button>
+        </form>
+      </section>
+
+      <section class="panel form-panel">
+        <div class="panel-head">
           <h2>Add integration</h2>
           <p>Create a GitHub or Jira connection directly from the dashboard.</p>
         </div>
@@ -43,6 +61,7 @@
             <select name="provider" required>
               <option value="github">GitHub</option>
               <option value="jira">Jira</option>
+              <option value="notion">Notion</option>
             </select>
           </label>
           <label>
@@ -69,7 +88,7 @@
         <form id="collectForm" class="stack">
           <label>
             <span>Connection</span>
-            <select id="connectionSelect" name="connection_id" required></select>
+            <select id="connectionSelect" name="integration_id" required></select>
           </label>
           <label>
             <span>Project reference</span>
@@ -79,12 +98,72 @@
         </form>
       </section>
 
+      <section class="panel form-panel">
+        <div class="panel-head">
+          <h2>Predict and simulate</h2>
+          <p>Generate a delay forecast and test one scenario on the latest telemetry.</p>
+        </div>
+        <form id="forecastForm" class="stack">
+          <label>
+            <span>Project reference</span>
+            <input name="project_ref" placeholder="owner/repo or ENG" required />
+          </label>
+          <button class="button button-secondary" type="submit">Create delay forecast</button>
+        </form>
+        <form id="simulationForm" class="stack">
+          <label>
+            <span>Project reference</span>
+            <input name="project_ref" placeholder="owner/repo or ENG" required />
+          </label>
+          <label>
+            <span>Scenario name</span>
+            <input name="scenario_name" placeholder="Add contributors and reduce blockers" required />
+          </label>
+          <label>
+            <span>Adjustments JSON</span>
+            <input name="adjustments_json" placeholder='{"active_contributors_30d": 2, "stale_pull_requests": -2}' required />
+          </label>
+          <button class="button button-primary" type="submit">Run simulation</button>
+        </form>
+        <form id="worldStateForm" class="stack">
+          <label>
+            <span>Project reference</span>
+            <input name="project_ref" placeholder="owner/repo or ENG" required />
+          </label>
+          <button class="button button-secondary" type="submit">Build experimental world state</button>
+        </form>
+      </section>
+
       <section class="panel wide-panel">
         <div class="panel-head">
           <h2>Active projects</h2>
-          <p>Latest telemetry snapshot per tracked project.</p>
+          <p>Unified score, top reasons, recommended actions, forecast and graph context.</p>
         </div>
         <div id="projectsGrid" class="projects-grid"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Connected integrations</h2>
+          <p>Current connector coverage and status.</p>
+        </div>
+        <div id="integrationList" class="list-stack"></div>
+      </section>
+
+      <section class="panel wide-panel">
+        <div class="panel-head">
+          <h2>Last sync status</h2>
+          <p>Most recent canonical sync runs across providers.</p>
+        </div>
+        <div id="syncRunList" class="list-stack"></div>
+      </section>
+
+      <section class="panel wide-panel">
+        <div class="panel-head">
+          <h2>Knowledge search results</h2>
+          <p>Graph + telemetry + document memory.</p>
+        </div>
+        <div id="searchResults" class="list-stack"></div>
       </section>
 
       <section class="panel">
@@ -101,6 +180,38 @@
           <p>Risk snapshots produced by the document pipeline.</p>
         </div>
         <div id="documentSnapshotList" class="list-stack"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Delay forecasts</h2>
+          <p>Historical trend-based delay probability.</p>
+        </div>
+        <div id="forecastList" class="list-stack"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Simulations</h2>
+          <p>Scenario outcomes on top of the latest baseline.</p>
+        </div>
+        <div id="simulationList" class="list-stack"></div>
+      </section>
+
+      <section class="panel wide-panel">
+        <div class="panel-head">
+          <h2>Experimental world states</h2>
+          <p>Research scaffold for future world-model work. Not a trained JEPA-like model.</p>
+        </div>
+        <div id="worldStateList" class="list-stack"></div>
+      </section>
+
+      <section class="panel wide-panel">
+        <div class="panel-head">
+          <h2>Graph relationships</h2>
+          <p>Recent canonical relationships across projects.</p>
+        </div>
+        <div id="graphRelationList" class="list-stack"></div>
       </section>
 
       <section class="panel wide-panel">

@@ -10,8 +10,19 @@ const runsTable = document.getElementById("runsTable");
 const connectionSelect = document.getElementById("connectionSelect");
 const integrationForm = document.getElementById("integrationForm");
 const collectForm = document.getElementById("collectForm");
+const searchForm = document.getElementById("searchForm");
+const forecastForm = document.getElementById("forecastForm");
+const simulationForm = document.getElementById("simulationForm");
+const worldStateForm = document.getElementById("worldStateForm");
 const refreshButton = document.getElementById("refreshButton");
 const toast = document.getElementById("toast");
+const searchResults = document.getElementById("searchResults");
+const forecastList = document.getElementById("forecastList");
+const simulationList = document.getElementById("simulationList");
+const worldStateList = document.getElementById("worldStateList");
+const integrationList = document.getElementById("integrationList");
+const syncRunList = document.getElementById("syncRunList");
+const graphRelationList = document.getElementById("graphRelationList");
 
 function riskClass(level) {
   return `risk-chip risk-${level || "low"}`;
@@ -31,10 +42,14 @@ function emptyState(message) {
 function renderSummary(summary) {
   const entries = [
     ["Integrations", summary.integrations_count],
-    ["Telemetry snapshots", summary.telemetry_count],
+    ["Metric snapshots", summary.telemetry_count],
     ["Document snapshots", summary.document_snapshot_count],
     ["Pipeline runs", summary.run_count],
     ["Active projects", summary.active_projects_count],
+    ["Sync runs", summary.sync_runs_count],
+    ["Forecasts", summary.forecasts_count],
+    ["Simulations", summary.simulations_count],
+    ["World states", summary.world_states_count],
   ];
   summaryGrid.innerHTML = entries
     .map(
@@ -54,16 +69,29 @@ function renderProjects(projects) {
     return;
   }
   projectsGrid.innerHTML = projects
-    .map(
-      (project) => `
+    .map((project) => {
+      const reasons = (project.top_reasons || []).map((item) => `<li>${item}</li>`).join("");
+      const actions = (project.recommended_actions || []).map((item) => `<li>${item}</li>`).join("");
+      const relations = (project.top_relationships || [])
+        .map((item) => `<span class="relation-pill">${item.relation_type}: ${item.source_ref} -> ${item.target_ref}</span>`)
+        .join("");
+      return `
         <article class="project-card">
           <span class="meta-label">${project.provider}</span>
           <h3>${project.project_ref}</h3>
-          <p>Latest score: <strong>${project.risk_score}/100</strong></p>
+          <p>Unified score: <strong>${Math.round(project.risk_score * 100)}/100</strong></p>
           <div class="${riskClass(project.risk_level)}">${project.risk_level}</div>
+          <div class="snapshot-meta">
+            <span>Last sync: ${project.last_sync_status}</span>
+            ${project.delay_probability !== null && project.delay_probability !== undefined ? `<span>Delay probability: ${Math.round(project.delay_probability * 100)}%</span>` : ""}
+            ${project.forecast_status ? `<span>Forecast: ${project.forecast_status}</span>` : ""}
+          </div>
+          ${reasons ? `<div class="detail-block"><span class="meta-label">Top reasons</span><ul class="detail-list">${reasons}</ul></div>` : ""}
+          ${actions ? `<div class="detail-block"><span class="meta-label">Recommended actions</span><ul class="detail-list">${actions}</ul></div>` : ""}
+          ${relations ? `<div class="relation-wrap">${relations}</div>` : ""}
         </article>
-      `,
-    )
+      `;
+    })
     .join("");
 }
 
@@ -79,7 +107,7 @@ function renderTelemetry(snapshots) {
         <article class="snapshot-card">
           <span class="meta-label">${snapshot.provider}</span>
           <h3>${snapshot.project_ref}</h3>
-          <div class="${riskClass(snapshot.risk_level)}">${snapshot.risk_level} · ${snapshot.risk_score}/100</div>
+          ${snapshot.risk_level ? `<div class="${riskClass(snapshot.risk_level)}">${snapshot.risk_level} · ${snapshot.risk_score}/100</div>` : ""}
           <div class="snapshot-meta">
             <span>${new Date(snapshot.created_at).toLocaleString()}</span>
             <span>${Object.entries(snapshot.metrics)
@@ -155,6 +183,161 @@ function renderRuns(runs) {
   `;
 }
 
+function renderSearchResults(results) {
+  if (!results.length) {
+    searchResults.innerHTML = emptyState("No search results yet.");
+    return;
+  }
+  searchResults.innerHTML = results
+    .map(
+      (item) => `
+        <article class="snapshot-card">
+          <span class="meta-label">${item.result_type}</span>
+          <h3>${item.title}</h3>
+          <p>${item.summary}</p>
+          <div class="snapshot-meta">
+            <span>score: ${item.score}</span>
+            <span>${item.ref}</span>
+          </div>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function renderForecasts(forecasts) {
+  if (!forecasts.length) {
+    forecastList.innerHTML = emptyState("No forecasts yet.");
+    return;
+  }
+  forecastList.innerHTML = forecasts
+    .map(
+      (item) => `
+        <article class="snapshot-card">
+          <span class="meta-label">${item.source}</span>
+          <h3>${item.project_ref}</h3>
+          <p>Delay probability: <strong>${Math.round(item.delay_probability * 100)}%</strong></p>
+          <div class="snapshot-meta">
+            <span>Trend: ${item.risk_trend}</span>
+            <span>${item.forecast.projected_status}</span>
+          </div>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function renderSimulations(simulations) {
+  if (!simulations.length) {
+    simulationList.innerHTML = emptyState("No simulations yet.");
+    return;
+  }
+  simulationList.innerHTML = simulations
+    .map(
+      (item) => `
+        <article class="snapshot-card">
+          <span class="meta-label">${item.project_ref}</span>
+          <h3>${item.scenario_name}</h3>
+          <div class="${riskClass(item.outcome.risk_level)}">${item.outcome.risk_level} · ${item.outcome.risk_score}/100</div>
+          <div class="snapshot-meta">
+            <span>${JSON.stringify(item.adjustments)}</span>
+          </div>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function renderWorldStates(states) {
+  if (!states.length) {
+    worldStateList.innerHTML = emptyState("No world states yet.");
+    return;
+  }
+  worldStateList.innerHTML = states
+    .map(
+      (item) => `
+        <article class="snapshot-card">
+          <span class="meta-label">${item.state_kind}</span>
+          <h3>${item.project_ref}</h3>
+          <p>${item.transitions.interpretation}</p>
+          <div class="snapshot-meta">
+            <span>nodes: ${item.latent_state.node_count}</span>
+            <span>edges: ${item.latent_state.edge_count}</span>
+            <span>mean risk: ${item.latent_state.recent_risk_mean}</span>
+          </div>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function renderIntegrations(integrations) {
+  if (!integrations.length) {
+    integrationList.innerHTML = emptyState("No integrations connected yet.");
+    return;
+  }
+  integrationList.innerHTML = integrations
+    .map(
+      (item) => `
+        <article class="snapshot-card">
+          <span class="meta-label">${item.provider}</span>
+          <h3>${item.name}</h3>
+          <div class="snapshot-meta">
+            <span>Status: ${item.status || "connected"}</span>
+            <span>Created: ${new Date(item.created_at).toLocaleString()}</span>
+          </div>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function renderSyncRuns(syncRuns) {
+  if (!syncRuns.length) {
+    syncRunList.innerHTML = emptyState("No sync runs yet.");
+    return;
+  }
+  syncRunList.innerHTML = syncRuns
+    .map(
+      (item) => `
+        <article class="snapshot-card">
+          <span class="meta-label">${item.provider}</span>
+          <h3>${item.project_ref}</h3>
+          <div class="${riskClass(item.status === "failed" ? "high" : item.status === "completed" ? "low" : "medium")}">${item.status}</div>
+          <div class="snapshot-meta">
+            <span>raw: ${item.raw_count}</span>
+            <span>entities: ${item.entity_count}</span>
+            <span>relations: ${item.relation_count}</span>
+            <span>metrics: ${item.snapshot_count}</span>
+          </div>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function renderGraphRelations(relations) {
+  if (!relations.length) {
+    graphRelationList.innerHTML = emptyState("No graph relationships yet.");
+    return;
+  }
+  graphRelationList.innerHTML = relations
+    .map(
+      (item) => `
+        <article class="snapshot-card">
+          <span class="meta-label">${item.project_ref || "cross-project"}</span>
+          <h3>${item.relation_type}</h3>
+          <div class="snapshot-meta">
+            <span>${item.source_ref}</span>
+            <span>-></span>
+            <span>${item.target_ref}</span>
+          </div>
+        </article>
+      `,
+    )
+    .join("");
+}
+
 function renderConnectionOptions() {
   if (!state.integrations.length) {
     connectionSelect.innerHTML = `<option value="">No connections yet</option>`;
@@ -189,6 +372,12 @@ async function loadOverview() {
   renderTelemetry(overview.telemetry_snapshots);
   renderDocumentSnapshots(overview.document_snapshots);
   renderRuns(overview.recent_runs);
+  renderForecasts(overview.forecasts);
+  renderSimulations(overview.simulations);
+  renderWorldStates(overview.world_states);
+  renderIntegrations(overview.integrations);
+  renderSyncRuns(overview.sync_runs);
+  renderGraphRelations(overview.graph_relationships);
 }
 
 async function refreshAll() {
@@ -230,6 +419,77 @@ collectForm.addEventListener("submit", async (event) => {
     renderConnectionOptions();
     await refreshAll();
     showToast("Telemetry snapshot collected");
+  } catch (error) {
+    showToast(error.message, true);
+  }
+});
+
+searchForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(searchForm);
+  const payload = Object.fromEntries(formData.entries());
+  if (!payload.project_ref) {
+    delete payload.project_ref;
+  }
+  payload.limit = 10;
+  try {
+    const response = await fetchJson("/knowledge/search", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    renderSearchResults(response.results);
+    showToast("Knowledge search complete");
+  } catch (error) {
+    showToast(error.message, true);
+  }
+});
+
+forecastForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(forecastForm);
+  const payload = Object.fromEntries(formData.entries());
+  try {
+    await fetchJson(`/knowledge/forecast/${encodeURIComponent(payload.project_ref)}`, {
+      method: "POST",
+    });
+    await refreshAll();
+    showToast("Forecast created");
+  } catch (error) {
+    showToast(error.message, true);
+  }
+});
+
+simulationForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(simulationForm);
+  const payload = Object.fromEntries(formData.entries());
+  try {
+    const adjustments = JSON.parse(payload.adjustments_json);
+    await fetchJson("/knowledge/simulate", {
+      method: "POST",
+      body: JSON.stringify({
+        project_ref: payload.project_ref,
+        scenario_name: payload.scenario_name,
+        adjustments,
+      }),
+    });
+    await refreshAll();
+    showToast("Simulation complete");
+  } catch (error) {
+    showToast(error.message, true);
+  }
+});
+
+worldStateForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(worldStateForm);
+  const payload = Object.fromEntries(formData.entries());
+  try {
+    await fetchJson(`/knowledge/world-state/${encodeURIComponent(payload.project_ref)}`, {
+      method: "POST",
+    });
+    await refreshAll();
+    showToast("World state built");
   } catch (error) {
     showToast(error.message, true);
   }

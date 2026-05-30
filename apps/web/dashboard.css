@@ -146,6 +146,36 @@ body {
   border: 1px solid rgba(28, 36, 48, 0.08);
 }
 
+.detail-block {
+  margin-top: 14px;
+}
+
+.detail-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--ink);
+}
+
+.detail-list li + li {
+  margin-top: 4px;
+}
+
+.relation-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.relation-pill {
+  display: inline-flex;
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: rgba(15, 118, 110, 0.08);
+  color: var(--ink);
+  font-size: 0.84rem;
+}
+
 .metric-card .label,
 .meta-label {
   display: block;

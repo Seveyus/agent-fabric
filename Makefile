@@ -4,7 +4,10 @@ dev-up:
 dev-down:
 	docker compose -f infra/compose/docker-compose.yml down -v
 
-migrate:
+db-wait:
+	docker compose -f infra/compose/docker-compose.yml exec postgres sh -lc 'until pg_isready -U agentfabric -d agentfabric; do echo "waiting for postgres"; sleep 2; done'
+
+migrate: db-wait
 	docker compose -f infra/compose/docker-compose.yml exec api alembic upgrade head
 
 seed:

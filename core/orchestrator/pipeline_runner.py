@@ -13,6 +13,7 @@ from core.evidence.linker import link_evidence
 from core.orchestrator.step_executor import execute_step
 from core.services.artifact_service import write_report_artifact
 from core.services.finding_service import persist_findings
+from core.services.knowledge_graph_service import ingest_document_snapshot_into_graph
 from core.services.project_snapshot_service import persist_project_snapshot
 from core.services.run_service import mark_run_step
 from db.models.document import Document
@@ -70,8 +71,9 @@ class ProjectRiskPipelineRunner:
             finding["evidence"] = linked_evidence
 
         mark_run_step(db, run, "persist_snapshot")
-        snapshot = build_project_snapshot(documents, chunks, extracted, findings)
+        snapshot = build_project_snapshot(job, documents, chunks, extracted, findings)
         persist_project_snapshot(db, run.id, snapshot)
+        ingest_document_snapshot_into_graph(db, run.id, snapshot, findings)
 
         mark_run_step(db, run, "persist_findings")
         persist_findings(db, run.id, findings)
@@ -81,7 +83,7 @@ class ProjectRiskPipelineRunner:
         write_report_artifact(db, run.id, markdown)
 
 
-def build_project_snapshot(documents: list[Document], chunks: list, extracted: list[dict], findings: list[dict]) -> dict:
+def build_project_snapshot(job, documents: list[Document], chunks: list, extracted: list[dict], findings: list[dict]) -> dict:
     score_finding = next((item for item in findings if item["kind"] == "project_risk_score"), None)
     owner_count = sum(len(item["owners"]) for item in extracted)
     action_count = sum(len(item["action_lines"]) for item in extracted)
@@ -92,6 +94,7 @@ def build_project_snapshot(documents: list[Document], chunks: list, extracted: l
     owner_coverage_ratio = owner_count / action_count if action_count else 1.0
 
     return {
+        "project_ref": getattr(job, "project_ref", None),
         "snapshot_date": date.today(),
         "total_documents": len(documents),
         "total_chunks": len(chunks),

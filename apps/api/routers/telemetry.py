@@ -2,29 +2,36 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from apps.api.deps import get_db
-from core.contracts.integrations import TelemetryCollectRequest, TelemetrySnapshotOut
-from core.services.telemetry_service import collect_telemetry_snapshot
-from db.models.integration_connection import IntegrationConnection
-from db.models.telemetry_snapshot import TelemetrySnapshot
+from core.contracts.integrations import MetricSnapshotOut, TelemetryCollectRequest, UnifiedProjectRiskScoreOut
+from core.services.connector_sync_service import run_connector_sync
+from core.services.project_risk_score_service import compute_project_risk_score
+from db.models.connector_sync_run import ConnectorSyncRun
+from db.models.integration import Integration
+from db.models.metric_snapshot import MetricSnapshot
 
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])
 
 
-@router.post("/collect", response_model=TelemetrySnapshotOut)
+@router.post("/collect", response_model=UnifiedProjectRiskScoreOut)
 def collect_snapshot(payload: TelemetryCollectRequest, db: Session = Depends(get_db)):
-    connection = db.get(IntegrationConnection, payload.connection_id)
-    if not connection:
-        raise HTTPException(status_code=404, detail="Integration connection not found.")
-    snapshot = collect_telemetry_snapshot(db, connection, payload.project_ref)
-    return TelemetrySnapshotOut.model_validate(snapshot)
+    integration = db.get(Integration, payload.integration_id)
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found.")
+    try:
+        run_connector_sync(db, integration, payload.project_ref)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return UnifiedProjectRiskScoreOut(**compute_project_risk_score(db, payload.project_ref))
 
 
-@router.get("/snapshots", response_model=list[TelemetrySnapshotOut])
-def list_snapshots(connection_id: str | None = None, project_ref: str | None = None, db: Session = Depends(get_db)):
-    query = db.query(TelemetrySnapshot).order_by(TelemetrySnapshot.created_at.desc())
-    if connection_id:
-        query = query.filter(TelemetrySnapshot.connection_id == connection_id)
+@router.get("/snapshots", response_model=list[MetricSnapshotOut])
+def list_snapshots(integration_id: str | None = None, project_ref: str | None = None, db: Session = Depends(get_db)):
+    query = db.query(MetricSnapshot).order_by(MetricSnapshot.captured_at.desc())
+    if integration_id:
+        query = query.join(ConnectorSyncRun, ConnectorSyncRun.id == MetricSnapshot.sync_run_id).filter(
+            ConnectorSyncRun.integration_id == integration_id
+        )
     if project_ref:
-        query = query.filter(TelemetrySnapshot.project_ref == project_ref)
+        query = query.filter(MetricSnapshot.project_ref == project_ref)
     rows = query.limit(100).all()
-    return [TelemetrySnapshotOut.model_validate(row) for row in rows]
+    return [MetricSnapshotOut.model_validate(row) for row in rows]

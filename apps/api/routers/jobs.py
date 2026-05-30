@@ -21,6 +21,7 @@ def create_job(payload: JobCreateRequest, db: Session = Depends(get_db)):
     job = Job(
         id=f"job_{uuid4().hex[:12]}",
         pipeline=payload.pipeline,
+        project_ref=payload.project_ref,
         objective=payload.objective,
         status="queued",
         input_document_ids=payload.document_ids,

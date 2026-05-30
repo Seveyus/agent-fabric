@@ -49,6 +49,7 @@ def test_risk_analyst_emits_project_risk_score():
 
 def test_build_project_snapshot_uses_score_finding():
     snapshot = build_project_snapshot(
+        job=type("Job", (), {"project_ref": "demo/project-risk"})(),
         documents=[object(), object()],
         chunks=[object()],
         extracted=[

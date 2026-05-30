@@ -11,6 +11,7 @@ class ProjectSnapshot(Base):
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     run_id: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    project_ref: Mapped[str | None] = mapped_column(String(255), index=True, nullable=True)
     snapshot_date: Mapped[date] = mapped_column(Date, nullable=False)
     total_documents: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     total_chunks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

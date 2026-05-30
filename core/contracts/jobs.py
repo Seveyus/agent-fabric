@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 class JobCreateRequest(BaseModel):
     pipeline: str = Field(default="project_risk")
+    project_ref: str | None = None
     objective: str
     document_ids: list[str]
 
@@ -11,6 +12,7 @@ class JobCreateRequest(BaseModel):
 class JobOut(BaseModel):
     id: str
     pipeline: str
+    project_ref: str | None = None
     objective: str
     status: str
     input_document_ids: list[str]

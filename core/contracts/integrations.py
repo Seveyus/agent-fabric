@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 
 class IntegrationConnectionCreateRequest(BaseModel):
-    provider: Literal["github", "jira"]
+    provider: Literal["github", "jira", "notion"]
     name: str
     base_url: str
     auth_token: str
@@ -18,25 +18,54 @@ class IntegrationConnectionOut(BaseModel):
     name: str
     base_url: str
     config: dict
+    status: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
 
 
 class TelemetryCollectRequest(BaseModel):
-    connection_id: str
+    integration_id: str
     project_ref: str
 
 
-class TelemetrySnapshotOut(BaseModel):
+class ConnectorSyncRunOut(BaseModel):
     id: str
-    connection_id: str
+    integration_id: str
     provider: str
+    project_ref: str
+    status: str
+    raw_count: int
+    entity_count: int
+    relation_count: int
+    snapshot_count: int
+    error_message: str | None = None
+    started_at: datetime
+    completed_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class MetricSnapshotOut(BaseModel):
+    id: str
+    sync_run_id: str
+    project_ref: str
+    metric_source: str
+    metric_name: str
+    metric_value: float
+    metric_unit: str | None = None
+    dimensions: dict
+    captured_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class UnifiedProjectRiskScoreOut(BaseModel):
     project_ref: str
     risk_score: float
     risk_level: str
-    metrics: dict
-    evidence: dict
-    created_at: datetime
+    top_reasons: list[str]
+    recommended_actions: list[str]
+    evidence: list[dict]
 
     model_config = {"from_attributes": True}
