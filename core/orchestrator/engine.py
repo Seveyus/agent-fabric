@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 
-from core.orchestrator.pipeline_runner import ProjectAuditPipelineRunner
+from core.orchestrator.pipeline_runner import ProjectRiskPipelineRunner
 from core.orchestrator.registry import PipelineRegistry
 from core.services.run_service import complete_run, create_run, fail_run
 from db.models.job import Job
@@ -19,7 +19,7 @@ class OrchestratorEngine:
                 raise ValueError(f"Job not found: {job_id}")
 
             run = create_run(db, job)
-            ProjectAuditPipelineRunner().run(db, run, job)
+            ProjectRiskPipelineRunner().run(db, run, job)
             complete_run(db, run, job)
         except Exception:
             if "db" in locals() and "run" in locals() and "job" in locals():

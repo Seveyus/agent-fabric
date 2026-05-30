@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "agent-fabric"
 version = "0.1.0"
-description = "Local-first multi-agent execution runtime for project audit"
+description = "Local-first project risk intelligence engine for delivery risk detection"
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.111.0",

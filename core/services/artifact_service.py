@@ -13,7 +13,7 @@ def write_report_artifact(db, run_id: str, markdown: str) -> Artifact:
     artifact = Artifact(
         id=f"artifact_{uuid4().hex[:12]}",
         run_id=run_id,
-        kind="report_markdown",
+        kind="project_risk_report_markdown",
         path=str(path),
         content_type="text/markdown",
     )

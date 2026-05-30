@@ -4,10 +4,12 @@ from sqlalchemy.orm import Session
 from apps.api.deps import get_db
 from core.contracts.evidence import EvidenceRefOut
 from core.contracts.findings import FindingOut
+from core.contracts.project_snapshots import ProjectSnapshotOut
 from core.contracts.runs import ArtifactOut, RunDetailOut, RunOut
 from db.models.artifact import Artifact
 from db.models.evidence_ref import EvidenceRef
 from db.models.finding import Finding
+from db.models.project_snapshot import ProjectSnapshot
 from db.models.run import Run
 
 router = APIRouter(prefix="/runs", tags=["runs"])
@@ -37,9 +39,11 @@ def get_run(run_id: str, db: Session = Depends(get_db)):
         )
 
     artifacts = db.query(Artifact).filter(Artifact.run_id == run_id).all()
+    snapshots = db.query(ProjectSnapshot).filter(ProjectSnapshot.run_id == run_id).all()
 
     return RunDetailOut(
         **RunOut.model_validate(run).model_dump(),
         findings=findings,
         artifacts=[ArtifactOut.model_validate(x) for x in artifacts],
+        snapshots=[ProjectSnapshotOut.model_validate(x) for x in snapshots],
     )

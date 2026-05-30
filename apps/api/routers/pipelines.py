@@ -8,8 +8,8 @@ def list_pipelines():
     return {
         "pipelines": [
             {
-                "name": "project_audit",
-                "description": "Detects risks, contradictions, missing ownership and delayed actions."
+                "name": "project_risk",
+                "description": "Detects delivery risk, blockers, ownership gaps, and timeline blindspots."
             }
         ]
     }

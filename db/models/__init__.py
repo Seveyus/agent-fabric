@@ -5,6 +5,7 @@ from db.models.document import Document
 from db.models.evidence_ref import EvidenceRef
 from db.models.finding import Finding
 from db.models.job import Job
+from db.models.project_snapshot import ProjectSnapshot
 from db.models.run import Run
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     "EvidenceRef",
     "Finding",
     "Job",
+    "ProjectSnapshot",
     "Run",
 ]

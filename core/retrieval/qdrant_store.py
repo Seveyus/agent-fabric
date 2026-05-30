@@ -7,7 +7,7 @@ from apps.api.config import settings
 class QdrantStore:
     def __init__(self):
         self.client = QdrantClient(url=settings.qdrant_url)
-        self.collection = "project_audit_chunks"
+        self.collection = "project_risk_chunks"
 
     def ensure_collection(self, vector_size: int):
         collections = [c.name for c in self.client.get_collections().collections]

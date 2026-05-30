@@ -2,6 +2,7 @@ from datetime import datetime
 from pydantic import BaseModel
 
 from core.contracts.findings import FindingOut
+from core.contracts.project_snapshots import ProjectSnapshotOut
 
 
 class ArtifactOut(BaseModel):
@@ -28,3 +29,4 @@ class RunOut(BaseModel):
 class RunDetailOut(RunOut):
     findings: list[FindingOut] = []
     artifacts: list[ArtifactOut] = []
+    snapshots: list[ProjectSnapshotOut] = []

@@ -1,8 +1,10 @@
 ALLOWED_SEVERITIES = {"low", "medium", "high"}
 ALLOWED_KINDS = {
-    "missing_owner",
-    "missing_deadline",
-    "date_hotspot",
-    "contradiction",
-    "review_required",
+    "ownership_gap",
+    "timeline_blindspot",
+    "delivery_friction",
+    "risk_signal_density",
+    "milestone_concentration",
+    "manual_review_recommended",
+    "project_risk_score",
 }

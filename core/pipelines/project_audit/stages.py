@@ -4,7 +4,8 @@ STAGES = [
     "extract_signals",
     "chunk_and_embed",
     "retrieve_evidence",
-    "analyze_risks",
+    "score_project_risk",
+    "persist_snapshot",
     "persist_findings",
     "generate_report",
 ]

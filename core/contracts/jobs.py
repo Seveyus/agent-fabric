@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 
 
 class JobCreateRequest(BaseModel):
-    pipeline: str = Field(default="project_audit")
+    pipeline: str = Field(default="project_risk")
     objective: str
     document_ids: list[str]
 

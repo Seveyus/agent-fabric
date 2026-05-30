@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     app_env: str = "dev"
-    app_name: str = "Agent Fabric"
+    app_name: str = "Project Risk Intelligence"
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     postgres_url: str = "postgresql+psycopg://agentfabric:agentfabric@localhost:5432/agentfabric"

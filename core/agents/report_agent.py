@@ -6,7 +6,7 @@ class ReportAgent:
 
     def run(self, objective: str, findings: list[dict]) -> str:
         lines = [
-            "# Project Audit Report",
+            "# Project Risk Report",
             "",
             f"**Objective**: {objective}",
             "",
@@ -22,6 +22,10 @@ class ReportAgent:
             lines.append(f"- Kind: {finding['kind']}")
             lines.append(f"- Severity: {finding['severity']}")
             lines.append(f"- Confidence: {finding['confidence']}")
+            if "score" in finding:
+                lines.append(f"- Score: {finding['score']}/100")
+            if "risk_level" in finding:
+                lines.append(f"- Risk level: {finding['risk_level']}")
             lines.append(f"- Summary: {finding['summary']}")
             evidence = finding.get("evidence", [])
             if evidence:

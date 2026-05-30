@@ -1,3 +1,5 @@
+from datetime import date
+
 from sqlalchemy.orm import Session
 
 from apps.api.config import settings
@@ -11,11 +13,12 @@ from core.evidence.linker import link_evidence
 from core.orchestrator.step_executor import execute_step
 from core.services.artifact_service import write_report_artifact
 from core.services.finding_service import persist_findings
+from core.services.project_snapshot_service import persist_project_snapshot
 from core.services.run_service import mark_run_step
 from db.models.document import Document
 
 
-class ProjectAuditPipelineRunner:
+class ProjectRiskPipelineRunner:
     def __init__(self):
         self.parser = ParserAgent()
         self.extractor = ExtractorAgent()
@@ -52,11 +55,11 @@ class ProjectAuditPipelineRunner:
         documents_by_id = {d.id: d for d in documents}
         linked_evidence = link_evidence(retrieved_chunks, documents_by_id, max_items=2)
 
-        mark_run_step(db, run, "analyze_risks")
+        mark_run_step(db, run, "score_project_risk")
         findings = execute_step(
             db,
             run.id,
-            "analyze_risks",
+            "score_project_risk",
             self.analyst.run,
             extracted,
             retrieved_chunks,
@@ -66,9 +69,39 @@ class ProjectAuditPipelineRunner:
         for finding in findings:
             finding["evidence"] = linked_evidence
 
+        mark_run_step(db, run, "persist_snapshot")
+        snapshot = build_project_snapshot(documents, chunks, extracted, findings)
+        persist_project_snapshot(db, run.id, snapshot)
+
         mark_run_step(db, run, "persist_findings")
         persist_findings(db, run.id, findings)
 
         mark_run_step(db, run, "generate_report")
         markdown = execute_step(db, run.id, "generate_report", self.reporter.run, job.objective, findings)
         write_report_artifact(db, run.id, markdown)
+
+
+def build_project_snapshot(documents: list[Document], chunks: list, extracted: list[dict], findings: list[dict]) -> dict:
+    score_finding = next((item for item in findings if item["kind"] == "project_risk_score"), None)
+    owner_count = sum(len(item["owners"]) for item in extracted)
+    action_count = sum(len(item["action_lines"]) for item in extracted)
+    date_count = sum(len(item["dates"]) for item in extracted)
+    risk_count = sum(len(item.get("risk_lines", [])) for item in extracted)
+    blocker_count = sum(len(item.get("blocker_lines", [])) for item in extracted)
+    dependency_count = sum(len(item.get("dependency_lines", [])) for item in extracted)
+    owner_coverage_ratio = owner_count / action_count if action_count else 1.0
+
+    return {
+        "snapshot_date": date.today(),
+        "total_documents": len(documents),
+        "total_chunks": len(chunks),
+        "owners_detected": owner_count,
+        "actions_detected": action_count,
+        "dates_detected": date_count,
+        "risks_detected": risk_count,
+        "blockers_detected": blocker_count,
+        "dependencies_detected": dependency_count,
+        "owner_coverage_ratio": round(owner_coverage_ratio, 3),
+        "risk_score": score_finding["score"] if score_finding else 0.0,
+        "risk_level": score_finding["risk_level"] if score_finding else "low",
+    }
