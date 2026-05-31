@@ -7,8 +7,19 @@ class BaseConnector(ABC):
     def __init__(self, integration):
         self.integration = integration
 
+    def authorization_header(self, default_scheme: str = "Bearer") -> str:
+        raw_value = (self.integration.auth_token or "").strip()
+        lowered = raw_value.lower()
+        if lowered.startswith("bearer ") or lowered.startswith("token ") or lowered.startswith("basic "):
+            return raw_value
+        return f"{default_scheme} {raw_value}"
+
     @abstractmethod
     def authenticate(self) -> dict:
+        raise NotImplementedError
+
+    @abstractmethod
+    def discover_recent_projects(self, limit: int = 10) -> list[dict]:
         raise NotImplementedError
 
     @abstractmethod

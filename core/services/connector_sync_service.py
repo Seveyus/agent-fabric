@@ -19,6 +19,46 @@ CONNECTOR_MAP = {
 }
 
 
+def discover_recent_projects(integration: Integration, limit: int = 10) -> list[dict]:
+    connector = _build_connector(integration)
+    projects = connector.discover_recent_projects(limit=limit)
+    return _dedupe_projects(projects)[:limit]
+
+
+def sync_recent_projects(db, integration: Integration, limit: int = 10) -> dict:
+    projects = discover_recent_projects(integration, limit=limit)
+    sync_runs = []
+    failures = 0
+
+    for project in projects:
+        project_ref = project["project_ref"]
+        try:
+            sync_run = run_connector_sync(db, integration, project_ref)
+        except Exception:
+            failures += 1
+            sync_run = (
+                db.query(ConnectorSyncRun)
+                .filter(
+                    ConnectorSyncRun.integration_id == integration.id,
+                    ConnectorSyncRun.project_ref == project_ref,
+                )
+                .order_by(ConnectorSyncRun.started_at.desc())
+                .first()
+            )
+        if sync_run is not None:
+            sync_runs.append(sync_run)
+
+    return {
+        "integration_id": integration.id,
+        "provider": integration.provider,
+        "discovered_count": len(projects),
+        "synced_count": len([item for item in sync_runs if item.status == "completed"]),
+        "failed_count": failures,
+        "projects": projects,
+        "sync_runs": sync_runs,
+    }
+
+
 def run_connector_sync(db, integration: Integration, project_ref: str) -> ConnectorSyncRun:
     sync_run = ConnectorSyncRun(
         id=f"sync_{uuid4().hex[:12]}",
@@ -60,6 +100,25 @@ def run_connector_sync(db, integration: Integration, project_ref: str) -> Connec
         sync_run.completed_at = datetime.now(timezone.utc)
         db.commit()
         raise
+
+
+def _build_connector(integration: Integration):
+    connector_cls = CONNECTOR_MAP.get(integration.provider)
+    if connector_cls is None:
+        raise ValueError(f"Unsupported provider: {integration.provider}")
+    return connector_cls(integration)
+
+
+def _dedupe_projects(projects: list[dict]) -> list[dict]:
+    deduped = []
+    seen_refs = set()
+    for project in projects:
+        project_ref = project.get("project_ref")
+        if not project_ref or project_ref in seen_refs:
+            continue
+        seen_refs.add(project_ref)
+        deduped.append(project)
+    return deduped
 
 
 def _persist_raw_payloads(db, sync_run: ConnectorSyncRun, integration: Integration, raw_payload: dict, project_ref: str) -> None:

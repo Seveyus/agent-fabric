@@ -29,6 +29,24 @@ class TelemetryCollectRequest(BaseModel):
     project_ref: str
 
 
+class RecentProjectCandidateOut(BaseModel):
+    project_ref: str
+    display_name: str
+    provider: str
+    last_activity_at: datetime | None = None
+    metadata: dict = Field(default_factory=dict)
+
+
+class BatchSyncResultOut(BaseModel):
+    integration_id: str
+    provider: str
+    discovered_count: int
+    synced_count: int
+    failed_count: int
+    projects: list[RecentProjectCandidateOut]
+    sync_runs: list["ConnectorSyncRunOut"]
+
+
 class ConnectorSyncRunOut(BaseModel):
     id: str
     integration_id: str
@@ -69,3 +87,6 @@ class UnifiedProjectRiskScoreOut(BaseModel):
     evidence: list[dict]
 
     model_config = {"from_attributes": True}
+
+
+BatchSyncResultOut.model_rebuild()

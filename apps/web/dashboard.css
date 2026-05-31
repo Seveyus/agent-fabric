@@ -197,6 +197,12 @@ body {
   gap: 12px;
 }
 
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 label {
   display: grid;
   gap: 6px;
@@ -267,6 +273,18 @@ select {
   margin: 10px 0 0;
   padding-left: 18px;
   color: var(--ink);
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.button-small {
+  padding: 9px 12px;
+  font-size: 0.88rem;
 }
 
 .table-wrap {

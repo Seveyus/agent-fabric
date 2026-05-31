@@ -10,10 +10,45 @@ class GitHubConnector(BaseConnector):
 
     def authenticate(self) -> dict:
         return {
-            "Authorization": f"Bearer {self.integration.auth_token}",
+            "Authorization": self.authorization_header("Bearer"),
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
         }
+
+    def discover_recent_projects(self, limit: int = 10) -> list[dict]:
+        headers = self.authenticate()
+        with httpx.Client(timeout=30.0, headers=headers) as client:
+            response = client.get(
+                f"{self.integration.base_url}/user/repos",
+                params={
+                    "sort": "updated",
+                    "direction": "desc",
+                    "per_page": min(max(limit, 1), 50),
+                    "affiliation": "owner,collaborator,organization_member",
+                },
+            )
+            response.raise_for_status()
+
+        projects = []
+        for repo in response.json():
+            full_name = repo.get("full_name")
+            if not full_name:
+                continue
+            projects.append(
+                {
+                    "project_ref": full_name,
+                    "display_name": full_name,
+                    "provider": self.provider,
+                    "last_activity_at": repo.get("pushed_at") or repo.get("updated_at"),
+                    "metadata": {
+                        "default_branch": repo.get("default_branch"),
+                        "private": repo.get("private", False),
+                        "archived": repo.get("archived", False),
+                        "open_issues_count": repo.get("open_issues_count", 0),
+                    },
+                }
+            )
+        return projects
 
     def fetch_raw(self, project_ref: str) -> dict:
         headers = self.authenticate()

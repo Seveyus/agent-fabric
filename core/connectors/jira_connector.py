@@ -9,7 +9,72 @@ class JiraConnector(BaseConnector):
     provider = "jira"
 
     def authenticate(self) -> dict:
-        return {"Authorization": f"Bearer {self.integration.auth_token}", "Accept": "application/json"}
+        return {"Authorization": self.authorization_header("Bearer"), "Accept": "application/json"}
+
+    def discover_recent_projects(self, limit: int = 10) -> list[dict]:
+        headers = self.authenticate()
+        with httpx.Client(timeout=30.0, headers=headers) as client:
+            recent_issues = client.get(
+                f"{self.integration.base_url}/rest/api/3/search",
+                params={
+                    "jql": "ORDER BY updated DESC",
+                    "maxResults": min(max(limit * 8, 20), 100),
+                    "fields": "project,updated",
+                },
+            )
+            recent_issues.raise_for_status()
+
+            projects = []
+            seen_keys = set()
+            for issue in recent_issues.json().get("issues", []):
+                fields = issue.get("fields", {})
+                project = fields.get("project") or {}
+                project_key = project.get("key")
+                if not project_key or project_key in seen_keys:
+                    continue
+                seen_keys.add(project_key)
+                projects.append(
+                    {
+                        "project_ref": project_key,
+                        "display_name": project.get("name", project_key),
+                        "provider": self.provider,
+                        "last_activity_at": fields.get("updated"),
+                        "metadata": {
+                            "project_id": project.get("id"),
+                            "project_type": project.get("projectTypeKey"),
+                        },
+                    }
+                )
+                if len(projects) >= limit:
+                    return projects
+
+            response = client.get(
+                f"{self.integration.base_url}/rest/api/3/project/search",
+                params={"maxResults": min(max(limit, 1), 50)},
+            )
+            response.raise_for_status()
+
+        fallback_projects = projects[:]
+        for project in response.json().get("values", []):
+            project_key = project.get("key")
+            if not project_key or project_key in seen_keys:
+                continue
+            seen_keys.add(project_key)
+            fallback_projects.append(
+                {
+                    "project_ref": project_key,
+                    "display_name": project.get("name", project_key),
+                    "provider": self.provider,
+                    "last_activity_at": None,
+                    "metadata": {
+                        "project_id": project.get("id"),
+                        "project_type": project.get("projectTypeKey"),
+                    },
+                }
+            )
+            if len(fallback_projects) >= limit:
+                break
+        return fallback_projects[:limit]
 
     def fetch_raw(self, project_ref: str) -> dict:
         headers = self.authenticate()

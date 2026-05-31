@@ -100,6 +100,28 @@
 
       <section class="panel form-panel">
         <div class="panel-head">
+          <h2>Recent project discovery</h2>
+          <p>Pull the most recently active projects from one integration, then sync them in one batch.</p>
+        </div>
+        <form id="discoveryForm" class="stack">
+          <label>
+            <span>Connection</span>
+            <select id="discoveryConnectionSelect" name="integration_id" required></select>
+          </label>
+          <label>
+            <span>How many recent projects</span>
+            <input name="limit" type="number" min="1" max="20" value="6" required />
+          </label>
+          <div class="button-row">
+            <button class="button button-secondary" type="submit">Discover recent projects</button>
+            <button id="syncRecentButton" class="button button-primary" type="button">Sync all discovered</button>
+          </div>
+        </form>
+        <div id="recentProjectList" class="list-stack"></div>
+      </section>
+
+      <section class="panel form-panel">
+        <div class="panel-head">
           <h2>Predict and simulate</h2>
           <p>Generate a delay forecast and test one scenario on the latest telemetry.</p>
         </div>

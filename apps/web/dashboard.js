@@ -1,5 +1,7 @@
 const state = {
   integrations: [],
+  recentProjects: [],
+  selectedDiscoveryIntegrationId: "",
 };
 
 const summaryGrid = document.getElementById("summaryGrid");
@@ -10,6 +12,7 @@ const runsTable = document.getElementById("runsTable");
 const connectionSelect = document.getElementById("connectionSelect");
 const integrationForm = document.getElementById("integrationForm");
 const collectForm = document.getElementById("collectForm");
+const discoveryForm = document.getElementById("discoveryForm");
 const searchForm = document.getElementById("searchForm");
 const forecastForm = document.getElementById("forecastForm");
 const simulationForm = document.getElementById("simulationForm");
@@ -23,6 +26,9 @@ const worldStateList = document.getElementById("worldStateList");
 const integrationList = document.getElementById("integrationList");
 const syncRunList = document.getElementById("syncRunList");
 const graphRelationList = document.getElementById("graphRelationList");
+const discoveryConnectionSelect = document.getElementById("discoveryConnectionSelect");
+const recentProjectList = document.getElementById("recentProjectList");
+const syncRecentButton = document.getElementById("syncRecentButton");
 
 function riskClass(level) {
   return `risk-chip risk-${level || "low"}`;
@@ -338,14 +344,55 @@ function renderGraphRelations(relations) {
     .join("");
 }
 
+function renderRecentProjects(projects) {
+  if (!projects.length) {
+    recentProjectList.innerHTML = emptyState("No recent projects discovered yet.");
+    return;
+  }
+  recentProjectList.innerHTML = projects
+    .map(
+      (item) => `
+        <article class="snapshot-card">
+          <span class="meta-label">${item.provider}</span>
+          <h3>${item.display_name}</h3>
+          <div class="snapshot-meta">
+            <span>${item.project_ref}</span>
+            ${item.last_activity_at ? `<span>Last activity: ${new Date(item.last_activity_at).toLocaleString()}</span>` : ""}
+          </div>
+          <div class="action-row">
+            <button class="button button-secondary button-small" type="button" data-action="use-project" data-project-ref="${item.project_ref}">Use in forms</button>
+            <button class="button button-primary button-small" type="button" data-action="sync-project" data-project-ref="${item.project_ref}">Sync now</button>
+          </div>
+        </article>
+      `,
+    )
+    .join("");
+}
+
 function renderConnectionOptions() {
   if (!state.integrations.length) {
     connectionSelect.innerHTML = `<option value="">No connections yet</option>`;
+    discoveryConnectionSelect.innerHTML = `<option value="">No connections yet</option>`;
     return;
   }
-  connectionSelect.innerHTML = state.integrations
-    .map((item) => `<option value="${item.id}">${item.name} · ${item.provider}</option>`)
-    .join("");
+  const options = state.integrations.map((item) => `<option value="${item.id}">${item.name} · ${item.provider}</option>`).join("");
+  connectionSelect.innerHTML = options;
+  discoveryConnectionSelect.innerHTML = options;
+  if (!state.selectedDiscoveryIntegrationId || !state.integrations.some((item) => item.id === state.selectedDiscoveryIntegrationId)) {
+    state.selectedDiscoveryIntegrationId = state.integrations[0].id;
+  }
+  if (!connectionSelect.value) {
+    connectionSelect.value = state.integrations[0].id;
+  }
+  discoveryConnectionSelect.value = state.selectedDiscoveryIntegrationId;
+}
+
+function fillProjectForms(projectRef) {
+  collectForm.elements.project_ref.value = projectRef;
+  forecastForm.elements.project_ref.value = projectRef;
+  simulationForm.elements.project_ref.value = projectRef;
+  worldStateForm.elements.project_ref.value = projectRef;
+  searchForm.elements.project_ref.value = projectRef;
 }
 
 async function fetchJson(url, options = {}) {
@@ -363,6 +410,21 @@ async function fetchJson(url, options = {}) {
 async function loadIntegrations() {
   state.integrations = await fetchJson("/integrations");
   renderConnectionOptions();
+}
+
+async function discoverRecentProjects() {
+  const integrationId = discoveryConnectionSelect.value;
+  const limit = discoveryForm.elements.limit.value || "6";
+  if (!integrationId) {
+    state.recentProjects = [];
+    renderRecentProjects([]);
+    return;
+  }
+  state.selectedDiscoveryIntegrationId = integrationId;
+  state.recentProjects = await fetchJson(
+    `/integrations/${encodeURIComponent(integrationId)}/recent-projects?limit=${encodeURIComponent(limit)}`,
+  );
+  renderRecentProjects(state.recentProjects);
 }
 
 async function loadOverview() {
@@ -383,6 +445,11 @@ async function loadOverview() {
 async function refreshAll() {
   try {
     await Promise.all([loadIntegrations(), loadOverview()]);
+    if (state.integrations.length) {
+      await discoverRecentProjects();
+    } else {
+      renderRecentProjects([]);
+    }
   } catch (error) {
     showToast(error.message, true);
   }
@@ -421,6 +488,73 @@ collectForm.addEventListener("submit", async (event) => {
     showToast("Telemetry snapshot collected");
   } catch (error) {
     showToast(error.message, true);
+  }
+});
+
+discoveryForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    await discoverRecentProjects();
+    showToast("Recent projects discovered");
+  } catch (error) {
+    showToast(error.message, true);
+  }
+});
+
+discoveryConnectionSelect.addEventListener("change", async () => {
+  state.selectedDiscoveryIntegrationId = discoveryConnectionSelect.value;
+  try {
+    await discoverRecentProjects();
+  } catch (error) {
+    showToast(error.message, true);
+  }
+});
+
+syncRecentButton.addEventListener("click", async () => {
+  const integrationId = discoveryConnectionSelect.value;
+  const limit = discoveryForm.elements.limit.value || "6";
+  if (!integrationId) {
+    showToast("Select an integration first", true);
+    return;
+  }
+  try {
+    const result = await fetchJson(
+      `/integrations/${encodeURIComponent(integrationId)}/sync-recent?limit=${encodeURIComponent(limit)}`,
+      { method: "POST" },
+    );
+    await refreshAll();
+    showToast(`Synced ${result.synced_count}/${result.discovered_count} recent projects`);
+  } catch (error) {
+    showToast(error.message, true);
+  }
+});
+
+recentProjectList.addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (!button) {
+    return;
+  }
+  const projectRef = button.dataset.projectRef;
+  if (button.dataset.action === "use-project") {
+    fillProjectForms(projectRef);
+    showToast(`Filled forms with ${projectRef}`);
+    return;
+  }
+  if (button.dataset.action === "sync-project") {
+    try {
+      await fetchJson("/telemetry/collect", {
+        method: "POST",
+        body: JSON.stringify({
+          integration_id: discoveryConnectionSelect.value,
+          project_ref: projectRef,
+        }),
+      });
+      fillProjectForms(projectRef);
+      await refreshAll();
+      showToast(`Synced ${projectRef}`);
+    } catch (error) {
+      showToast(error.message, true);
+    }
   }
 });
 

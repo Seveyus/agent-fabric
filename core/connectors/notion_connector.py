@@ -8,10 +8,45 @@ class NotionConnector(BaseConnector):
 
     def authenticate(self) -> dict:
         return {
-            "Authorization": f"Bearer {self.integration.auth_token}",
+            "Authorization": self.authorization_header("Bearer"),
             "Notion-Version": "2022-06-28",
             "Content-Type": "application/json",
         }
+
+    def discover_recent_projects(self, limit: int = 10) -> list[dict]:
+        headers = self.authenticate()
+        with httpx.Client(timeout=30.0, headers=headers) as client:
+            response = client.post(
+                f"{self.integration.base_url}/v1/search",
+                json={"page_size": min(max(limit * 3, 10), 50)},
+            )
+            response.raise_for_status()
+
+        projects = []
+        seen_refs = set()
+        for item in response.json().get("results", []):
+            title = self._extract_title(item).strip()
+            if not title:
+                continue
+            project_ref = self._project_ref(item, title)
+            if project_ref in seen_refs:
+                continue
+            seen_refs.add(project_ref)
+            projects.append(
+                {
+                    "project_ref": project_ref,
+                    "display_name": title,
+                    "provider": self.provider,
+                    "last_activity_at": item.get("last_edited_time"),
+                    "metadata": {
+                        "object_type": item.get("object"),
+                        "notion_id": item.get("id"),
+                    },
+                }
+            )
+            if len(projects) >= limit:
+                break
+        return projects
 
     def fetch_raw(self, project_ref: str) -> dict:
         headers = self.authenticate()
@@ -77,6 +112,10 @@ class NotionConnector(BaseConnector):
         if item.get("object") == "database":
             return "".join(part.get("plain_text", "") for part in item.get("title", []))
         return item.get("id", "")
+
+    def _project_ref(self, item: dict, title: str) -> str:
+        slug = "-".join(part for part in "".join(ch.lower() if ch.isalnum() else " " for ch in title).split() if part)
+        return slug or f"notion-{item['id'][:8]}"
 
     def _entity(self, entity_type: str, entity_ref: str, name: str, project_ref: str, attributes: dict) -> dict:
         return {"entity_type": entity_type, "entity_ref": entity_ref, "name": name, "project_ref": project_ref, "attributes": attributes}
