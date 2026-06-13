@@ -5,14 +5,14 @@ from db.models.project_snapshot import ProjectSnapshot
 
 
 def hybrid_search(db, query: str, project_ref: str | None = None, limit: int = 8) -> list[dict]:
-    tokens = [token.lower() for token in query.split() if len(token) > 2]
+    tokens = _tokenize(query)
     if not tokens:
         return []
 
     node_rows = db.query(CanonicalEntity).all()
     results = []
     for row in node_rows:
-        haystack = f"{row.name} {row.entity_ref} {row.attributes}".lower()
+        haystack = _normalize_text(f"{row.name} {row.entity_ref} {row.attributes} {row.entity_type} {row.project_ref or ''}")
         score = sum(1 for token in tokens if token in haystack)
         if score > 0:
             if project_ref and project_ref != row.project_ref and project_ref not in str(row.attributes):
@@ -30,10 +30,12 @@ def hybrid_search(db, query: str, project_ref: str | None = None, limit: int = 8
 
     edge_rows = db.query(CanonicalRelation).all()
     for row in edge_rows:
-        haystack = f"{row.source_ref} {row.target_ref} {row.relation_type} {row.attributes}".lower()
+        haystack = _normalize_text(
+            f"{row.source_ref} {row.target_ref} {row.relation_type} {row.attributes} {row.project_ref or ''}"
+        )
         score = sum(1 for token in tokens if token in haystack)
         if score > 0:
-            if project_ref and project_ref not in row.source_ref and project_ref not in row.target_ref:
+            if project_ref and project_ref != row.project_ref and project_ref not in row.source_ref and project_ref not in row.target_ref:
                 continue
             results.append(
                 {
@@ -48,7 +50,9 @@ def hybrid_search(db, query: str, project_ref: str | None = None, limit: int = 8
 
     metric_rows = db.query(MetricSnapshot).order_by(MetricSnapshot.captured_at.desc()).limit(100).all()
     for row in metric_rows:
-        haystack = f"{row.project_ref} {row.metric_source} {row.metric_name} {row.metric_value} {row.dimensions}".lower()
+        haystack = _normalize_text(
+            f"{row.project_ref} {row.metric_source} {row.metric_name} {row.metric_name.replace('_', ' ')} {row.metric_value} {row.dimensions}"
+        )
         score = sum(1 for token in tokens if token in haystack)
         if score > 0:
             if project_ref and row.project_ref != project_ref:
@@ -66,9 +70,14 @@ def hybrid_search(db, query: str, project_ref: str | None = None, limit: int = 8
 
     doc_rows = db.query(ProjectSnapshot).order_by(ProjectSnapshot.created_at.desc()).limit(50).all()
     for row in doc_rows:
-        haystack = f"{row.run_id} {row.risk_level} {row.risk_score}".lower()
+        haystack = _normalize_text(
+            f"{row.run_id} {row.project_ref or ''} {row.risk_level} {row.risk_score} "
+            f"{row.actions_detected} {row.owners_detected} {row.blockers_detected} {row.dependencies_detected}"
+        )
         score = sum(1 for token in tokens if token in haystack)
         if score > 0:
+            if project_ref and row.project_ref and row.project_ref != project_ref:
+                continue
             results.append(
                 {
                     "result_type": "document_snapshot",
@@ -82,3 +91,12 @@ def hybrid_search(db, query: str, project_ref: str | None = None, limit: int = 8
 
     results.sort(key=lambda item: item["score"], reverse=True)
     return results[:limit]
+
+
+def _normalize_text(value: str) -> str:
+    return value.lower().replace("_", " ").replace("-", " ")
+
+
+def _tokenize(value: str) -> list[str]:
+    normalized = _normalize_text(value)
+    return [token for token in normalized.split() if len(token) > 1]

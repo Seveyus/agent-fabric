@@ -23,7 +23,7 @@ from db.models.world_model_state import WorldModelState
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
 
-@router.get("/project-risk/{project_ref}")
+@router.get("/project-risk/{project_ref:path}")
 def project_risk(project_ref: str, db: Session = Depends(get_db)):
     return compute_project_risk_score(db, project_ref)
 
@@ -34,7 +34,7 @@ def search_knowledge(payload: KnowledgeSearchRequest, db: Session = Depends(get_
     return KnowledgeSearchResponse(results=[KnowledgeSearchResultOut(**item) for item in results])
 
 
-@router.post("/forecast/{project_ref}", response_model=ForecastOut)
+@router.post("/forecast/{project_ref:path}", response_model=ForecastOut)
 def forecast_project_delay(project_ref: str, db: Session = Depends(get_db)):
     try:
         record = create_delay_forecast(db, project_ref)
@@ -70,7 +70,7 @@ def list_simulations(project_ref: str | None = None, db: Session = Depends(get_d
     return [SimulationRunOut.model_validate(row) for row in rows]
 
 
-@router.post("/world-state/{project_ref}", response_model=WorldStateOut)
+@router.post("/world-state/{project_ref:path}", response_model=WorldStateOut)
 def create_world_state(project_ref: str, db: Session = Depends(get_db)):
     try:
         row = build_experimental_world_state(db, project_ref)

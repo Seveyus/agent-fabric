@@ -4,10 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-fabric"
-version = "0.1.0"
-description = "Local-first project risk intelligence engine for delivery risk detection"
+version = "0.2.0"
+description = "Delivery World Model — JEPA-inspired temporal knowledge graph for software delivery intelligence"
 requires-python = ">=3.11"
 dependencies = [
+  # API & infra
   "fastapi>=0.111.0",
   "uvicorn[standard]>=0.30.0",
   "sqlalchemy>=2.0.31",
@@ -24,11 +25,32 @@ dependencies = [
   "openpyxl>=3.1.5",
   "orjson>=3.10.6",
   "tenacity>=8.5.0",
+  # ML / JEPA world model
+  "torch>=2.3.0",
+  "torch-geometric>=2.5.3",
+  "numpy>=1.26.0",
+  "scikit-learn>=1.5.0",
+  "xgboost>=2.1.0",
+  # Data pipeline — GH Archive
+  "PyGithub>=2.3.0",
+  "polars>=0.20.0",
+  "tqdm>=4.66.0",
+  "smart-open>=7.0.0",
+  # Sentence embeddings (lightweight, CPU-friendly)
+  "sentence-transformers>=3.0.0",
+]
+
+[project.optional-dependencies]
+# pip install -e ".[train]"
+# torch-scatter / torch-sparse must match your torch+CUDA version — install manually:
+#   pip install torch-scatter torch-sparse -f https://data.pyg.org/whl/torch-2.3.0+cu121.html
+train = [
+  "wandb>=0.17.0",
 ]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["apps*", "core*", "db*"]
+include = ["apps*", "core*", "db*", "models*", "training*"]
 
 [tool.ruff]
 line-length = 100
