@@ -367,7 +367,7 @@ def build_pr_merge_task(events: pl.DataFrame, cfg: PRMergeTaskConfig) -> Tempora
     # ---- PR node features --------------------------------------------------
     opens = (
         ev.filter(pl.col("etype") == "pr_open")
-        .sort("ts")
+        .sort(["ts", "repo", "number", "actor"])
         .unique(subset=["repo", "number"], keep="first", maintain_order=True)
         .with_columns(pl.coalesce("pr_author", "actor").alias("author"))
     )
@@ -425,7 +425,10 @@ def build_pr_merge_task(events: pl.DataFrame, cfg: PRMergeTaskConfig) -> Tempora
 
     # ---- edges -------------------------------------------------------------
     def put(rel: tuple[str, str, str], df: pl.DataFrame, src: str, dst: str) -> None:
-        df = df.select(pl.col(src).alias("s"), pl.col(dst).alias("d"), "ts").drop_nulls().unique().sort("ts")
+        # Full sort key: neighbour order in the CSC must not depend on how polars
+        # breaks ties, otherwise identical seeds sample different neighbours.
+        df = df.select(pl.col(src).alias("s"), pl.col(dst).alias("d"), "ts").drop_nulls().unique()
+        df = df.sort(["ts", "s", "d"])
         ei = torch.from_numpy(np.stack([df["s"].to_numpy(), df["d"].to_numpy()]).astype(np.int64))
         t = torch.from_numpy(df["ts"].to_numpy().astype(np.int64))
         s, r, d = rel

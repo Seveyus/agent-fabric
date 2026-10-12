@@ -127,3 +127,14 @@ def test_save_load_roundtrip(task, tmp_path):
     assert torch.equal(loaded.splits["val"].y, task.splits["val"].y)
     et = ("user", "opens", "pr")
     assert torch.equal(loaded.data[et].time, task.data[et].time)
+
+
+def test_build_is_deterministic(events):
+    """Edge order (hence the CSC neighbour order the sampler sees) must not depend on
+    polars tie-breaking; otherwise identical seeds sample different neighbours."""
+    a = build_pr_merge_task(events, CFG).data
+    b = build_pr_merge_task(events.sample(fraction=1.0, shuffle=True, seed=7), CFG).data
+    for et in a.edge_types:
+        assert torch.equal(a[et].edge_index, b[et].edge_index), et
+        assert torch.equal(a[et].time, b[et].time), et
+    assert torch.equal(a["pr"].x, b["pr"].x)

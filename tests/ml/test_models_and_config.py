@@ -142,3 +142,18 @@ def test_pyg_hgtconv_is_order_sensitive_and_our_wrapper_is_not(small_task):
         assert torch.allclose(out1, model(shuffled, "pr"), atol=1e-6)
     finally:
         pyg_backend.use_segment_matmul = old
+
+
+@pytest.mark.slow
+def test_same_seed_gives_identical_results(tmp_path):
+    """Reproducibility: with backend.num_workers >= 1 (the default) two runs with
+    the same seed produce identical metrics, including neighbour sampling."""
+    from training.node_task import run_experiment
+
+    raw = json.loads(json.dumps(BASE))
+    raw["experiment"]["output_dir"] = str(tmp_path)
+    raw["train"]["epochs"] = 1
+    a = run_experiment(config_from_dict(raw))
+    b = run_experiment(config_from_dict(raw))
+    assert a["test"]["roc_auc"] == b["test"]["roc_auc"]
+    assert a["history"][0]["train_loss"] == b["history"][0]["train_loss"]

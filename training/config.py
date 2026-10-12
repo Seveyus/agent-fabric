@@ -93,7 +93,11 @@ class TrainSection:
 class BackendSection:
     name: str = "pyg"                    # "pyg" | "cugraph"
     device: str = "cpu"
-    num_workers: int = 0
+    # >= 1 makes PyG sampling reproducible: pyg-lib's multi-threaded disjoint
+    # sampling ignores torch.manual_seed, whereas DataLoader workers run it
+    # single-threaded with a deterministic per-worker seed (verified: identical
+    # metrics across runs). 0 samples in the main process with all threads.
+    num_workers: int = 1
     torch_threads: int = 0               # 0 = PyTorch default
 
 

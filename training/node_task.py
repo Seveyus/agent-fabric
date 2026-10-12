@@ -219,7 +219,7 @@ def _run(model, loader, labels: torch.Tensor, device, seed_type: str, optimizer=
 def _environment(backend) -> dict:
     try:
         commit = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
-        dirty = bool(subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True).stdout.strip())
+        dirty = bool(subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], capture_output=True, text=True).stdout.strip())
     except (OSError, subprocess.CalledProcessError):
         commit, dirty = None, None
     cpu = None
