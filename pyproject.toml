@@ -75,3 +75,8 @@ markers = [
   "cugraph: requires a CUDA GPU with the RAPIDS cuGraph-PyG stack",
   "slow: end-to-end training runs (seconds to a minute on CPU)",
 ]
+# DataLoader workers are forked from a process that already started PyTorch's
+# intra-op threads; PyTorch supports this on Linux, Python 3.12 still warns.
+filterwarnings = [
+  "ignore:This process .* is multi-threaded, use of fork\\(\\) may lead to deadlocks:DeprecationWarning",
+]
