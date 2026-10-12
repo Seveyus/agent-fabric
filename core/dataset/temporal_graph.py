@@ -24,8 +24,10 @@ happened. Each forward relation has a ``rev_*`` twin with the same times.
     pr    -in_repo->            repo   (first time the PR is seen)
     pr    -merged_into->        repo   (merge time)
     pr    -closed_unmerged_in-> repo
-    user  -merges->             pr
-    user  -closes->             pr     (closed without merge)
+    user  -merges->             pr     (the merger)
+    user  -closes->             pr     (the closer, PR closed without merge)
+    user  -authored_merged->    pr     (the PR's author, at merge time)
+    user  -authored_closed->    pr     (the PR's author, at unmerged-close time)
     user  -approves->           pr
     user  -reviews->            pr     (commented / changes requested / dismissed)
     user  -comments_on->        pr
@@ -34,6 +36,10 @@ happened. Each forward relation has a ``rev_*`` twin with the same times.
     user  -forks->              repo
     user  -issue_activity->     repo
     user  -releases->           repo
+
+The authored_* relations put an author's past outcomes two hops from a new
+PR of that author (seed <- author <- earlier PR), which a 2-layer model can
+reach; through opens/merges alone it would take three hops.
 
 Leakage control
 ---------------
@@ -91,6 +97,8 @@ FORWARD_RELATIONS = [
     ("pr", "closed_unmerged_in", "repo"),
     ("user", "merges", "pr"),
     ("user", "closes", "pr"),
+    ("user", "authored_merged", "pr"),
+    ("user", "authored_closed", "pr"),
     ("user", "approves", "pr"),
     ("user", "reviews", "pr"),
     ("user", "comments_on", "pr"),
@@ -421,6 +429,9 @@ def build_pr_merge_task(events: pl.DataFrame, cfg: PRMergeTaskConfig) -> Tempora
     )
     put(("user", "merges", "pr"), merged_by, "user_idx", "pr_id")
     put(("user", "closes", "pr"), closes.filter(~pl.col("merged")), "user_idx", "pr_id")
+    authored = with_ids(et("pr_close").drop("actor").rename({"pr_author": "actor"}), "actor")
+    put(("user", "authored_merged", "pr"), authored.filter(pl.col("merged")), "user_idx", "pr_id")
+    put(("user", "authored_closed", "pr"), authored.filter(~pl.col("merged")), "user_idx", "pr_id")
     reviews = with_ids(et("pr_review"), "actor")
     put(("user", "approves", "pr"), reviews.filter(pl.col("review_state") == "approved"), "user_idx", "pr_id")
     put(("user", "reviews", "pr"), reviews.filter(pl.col("review_state") != "approved"), "user_idx", "pr_id")
