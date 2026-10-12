@@ -74,4 +74,5 @@ def run_tabular(task: TemporalTask, model: str, use_history: bool, seed: int = 0
         "test": test,
         "timing": {"train_seconds_total": train_seconds, "test_inference_seconds": infer,
                    "test_seeds_per_second": len(yte) / max(infer, 1e-9)},
+        "_test_pred": (yte, pte),  # in-memory only (used by training/suite.py)
     }

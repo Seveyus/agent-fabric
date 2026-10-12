@@ -51,6 +51,53 @@ SUITES: dict[str, list[tuple[str, str, list[str]]]] = {
 }
 
 
+# Paired comparisons (A, B) reported as AUC(A) - AUC(B) with a paired bootstrap CI.
+PAIRS: dict[str, list[tuple[str, str]]] = {
+    "main": [
+        ("HeteroSAGE (intrinsic)", "MLP (intrinsic)"),
+        ("HGT (intrinsic)", "MLP (intrinsic)"),
+        ("HGT (intrinsic)", "HeteroSAGE (intrinsic)"),
+        ("LightGBM (+history)", "LightGBM (intrinsic)"),
+        ("HeteroSAGE (+history)", "LightGBM (+history)"),
+        ("HGT (+history)", "LightGBM (+history)"),
+        ("HGT (+history)", "MLP (+history)"),
+        ("HGT (+history)", "HeteroSAGE (+history)"),
+    ],
+    "jepa": [
+        ("Linear probe, JEPA HGT", "Linear probe, random frozen HGT"),
+        ("JEPA HGT fine-tuned, 100% labels", "HGT scratch, 100% labels"),
+        ("JEPA HGT fine-tuned, 10% labels", "HGT scratch, 10% labels"),
+    ],
+}
+
+
+def _comparisons(suite: str, pred_dir: Path, labels: set[str]) -> list[dict]:
+    from training.compare import compare
+
+    out = []
+    for a, b in PAIRS.get(suite, []):
+        if a in labels and b in labels:
+            try:
+                out.append(compare(pred_dir, a, b))
+            except (FileNotFoundError, ValueError) as exc:
+                log.warning("comparison %s vs %s skipped: %s", a, b, exc)
+    return out
+
+
+def _comparison_markdown(comps: list[dict]) -> str:
+    if not comps:
+        return ""
+    lines = ["", "## Paired comparisons (same test seeds)", "",
+             "| A | B | AUC(A) − AUC(B) | 95% paired bootstrap CI | P(diff ≤ 0) |", "|---|---|---|---|---|"]
+    for c in comps:
+        lines.append(f"| {c['a']} | {c['b']} | {c['auc_diff']:+.4f} | [{c['ci95'][0]:+.4f}, {c['ci95'][1]:+.4f}] | "
+                     f"{c['p_le_0']:.3f} |")
+    lines.append("")
+    lines.append("Mean over model seeds of the per-seed AUC difference; 1,000 bootstrap resamples of the "
+                 "test seeds shared by both models.")
+    return "\n".join(lines) + "\n"
+
+
 def _run_one(config_path: str, kind: str, overrides: list[str], seed: int, jepa_ckpt: dict) -> dict:
     from training.node_task import prepare_task, run_experiment, select_features, standardise
 
@@ -121,8 +168,12 @@ def _markdown(title: str, meta: dict, rows: list[tuple[str, dict]]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _slug(label: str) -> str:
+    return "".join(c if c.isalnum() else "_" for c in label).strip("_").lower()
+
+
 def run_suite(suite: str, config_path: str, seeds: list[int], out_dir: str = "experiments/results",
-              only: list[str] | None = None) -> dict:
+              only: list[str] | None = None, pred_root: str = "runs/predictions") -> dict:
     variants = [v for v in SUITES[suite] if not only or v[0] in only]
     jepa_ckpt: dict = {}
     runs: dict[str, list[dict]] = {}
@@ -130,7 +181,12 @@ def run_suite(suite: str, config_path: str, seeds: list[int], out_dir: str = "ex
     for label, kind, overrides in variants:
         for seed in seeds:
             log.info("=== %s | seed %d", label, seed)
-            runs.setdefault(label, []).append(_run_one(config_path, kind, overrides, seed, jepa_ckpt))
+            r = _run_one(config_path, kind, overrides, seed, jepa_ckpt)
+            y, prob = r.pop("_test_pred")
+            pred_dir = Path(pred_root) / f"{Path(config_path).stem}__{suite}"
+            pred_dir.mkdir(parents=True, exist_ok=True)
+            np.savez_compressed(pred_dir / f"{_slug(label)}__seed{seed}.npz", y=y, p=prob)
+            runs.setdefault(label, []).append(r)
 
     gnn_run = next((r[0] for r in runs.values() if "environment" in r[0]), None)
     env = gnn_run["environment"] if gnn_run else {}
@@ -148,9 +204,10 @@ def run_suite(suite: str, config_path: str, seeds: list[int], out_dir: str = "ex
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     stem = f"{Path(config_path).stem}__{suite}"
-    (out / f"{stem}.json").write_text(json.dumps({"meta": meta, "summary": summary, "runs": runs},
-                                                 indent=2, default=float))
-    (out / f"{stem}.md").write_text(_markdown(f"{stem}", meta, list(summary.items())))
+    comps = _comparisons(suite, Path(pred_root) / stem, set(runs))
+    (out / f"{stem}.json").write_text(json.dumps(
+        {"meta": meta, "summary": summary, "comparisons": comps, "runs": runs}, indent=2, default=float))
+    (out / f"{stem}.md").write_text(_markdown(f"{stem}", meta, list(summary.items())) + _comparison_markdown(comps))
     log.info("wrote %s", out / f"{stem}.md")
     return {"meta": meta, "summary": summary}
 
@@ -162,9 +219,27 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
     p.add_argument("--out", default="experiments/results")
     p.add_argument("--only", nargs="*", default=None, help="subset of variant labels")
+    p.add_argument("--compare-only", action="store_true",
+                   help="recompute paired comparisons from saved predictions and update the report")
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    if args.compare_only:
+        update_comparisons(args.suite, args.config, args.out)
+        return
     run_suite(args.suite, args.config, args.seeds, args.out, args.only)
+
+
+def update_comparisons(suite: str, config_path: str, out_dir: str = "experiments/results",
+                       pred_root: str = "runs/predictions") -> list[dict]:
+    stem = f"{Path(config_path).stem}__{suite}"
+    report = json.loads((Path(out_dir) / f"{stem}.json").read_text())
+    comps = _comparisons(suite, Path(pred_root) / stem, set(report["summary"]))
+    report["comparisons"] = comps
+    (Path(out_dir) / f"{stem}.json").write_text(json.dumps(report, indent=2, default=float))
+    md_path = Path(out_dir) / f"{stem}.md"
+    md = md_path.read_text().split("\n## Paired comparisons")[0].rstrip("\n") + "\n"
+    md_path.write_text(md + _comparison_markdown(comps))
+    return comps
 
 
 if __name__ == "__main__":

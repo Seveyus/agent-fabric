@@ -351,6 +351,9 @@ def run_experiment(cfg: ExperimentConfig, task: TemporalTask | None = None) -> d
         "run_dir": str(run_dir),
     }
     (run_dir / "results.json").write_text(json.dumps(results, indent=2, default=float))
+    np.savez_compressed(run_dir / "test_predictions.npz", y=te["y"], p=te["p"],
+                        node=task.splits["test"].node.numpy())
+    results["_test_pred"] = (te["y"], te["p"])  # in-memory only (used by training/suite.py)
     log.info("TEST %s: roc_auc=%.4f ap=%.4f f1=%.4f (threshold %.3f from val)",
              cfg.model.encoder, test_m["roc_auc"], test_m["avg_precision"], test_m["f1"], thr)
     return results
