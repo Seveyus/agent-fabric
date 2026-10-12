@@ -395,8 +395,14 @@ def build_pr_merge_task(events: pl.DataFrame, cfg: PRMergeTaskConfig) -> Tempora
     )
     x_repo = torch.ones(n_repo, 1)
 
+    open_ts = (
+        pr_first.select("pr_id").join(opens.select("pr_id", "ts"), on="pr_id", how="left")
+        .sort("pr_id")["ts"].fill_null(-1).to_numpy().astype(np.int64)
+    )
+
     data = HeteroData()
     data["pr"].x = x_pr
+    data["pr"].open_ts = torch.from_numpy(open_ts)  # -1 when the open event was not observed
     data["user"].x = x_user
     data["repo"].x = x_repo
 

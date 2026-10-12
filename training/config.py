@@ -72,6 +72,7 @@ class TrainSection:
     patience: int = 3
     max_batches_per_epoch: int = 0       # 0 = full epoch
     grad_clip: float = 1.0
+    label_fraction: float = 1.0          # deterministic subsample of training seeds (label-efficiency runs)
 
 
 @dataclass
@@ -86,6 +87,22 @@ class BackendSection:
 class PretrainSection:
     checkpoint: str = ""                 # JEPA checkpoint whose online encoder initialises the model
     freeze_encoder: bool = False         # linear probe when True
+    freeze_random_encoder: bool = False  # control: linear probe on a randomly initialised encoder
+
+
+@dataclass
+class JepaSection:
+    """Temporal JEPA pretraining (training/pretrain_jepa.py)."""
+
+    delta_hours: list[float] = field(default_factory=lambda: [12.0, 24.0, 48.0])
+    epochs: int = 10
+    lr: float = 1e-3
+    weight_decay: float = 1e-4
+    ema_tau: float = 0.996
+    ema_tau_end: float = 1.0
+    predictor_hidden: int = 128
+    max_anchors: int = 0                 # 0 = all eligible PRs
+    output: str = ""                     # checkpoint path; default <output_dir>/<name>/jepa.pt
 
 
 @dataclass
@@ -99,6 +116,7 @@ class ExperimentConfig:
     train: TrainSection = field(default_factory=TrainSection)
     backend: BackendSection = field(default_factory=BackendSection)
     pretrain: PretrainSection = field(default_factory=PretrainSection)
+    jepa: JepaSection = field(default_factory=JepaSection)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -127,12 +145,23 @@ class ExperimentConfig:
             raise ConfigError("model.dropout must be in [0, 1)")
         if self.train.epochs <= 0 or self.train.lr <= 0:
             raise ConfigError("train.epochs and train.lr must be > 0")
+        if not 0.0 < self.train.label_fraction <= 1.0:
+            raise ConfigError("train.label_fraction must be in (0, 1]")
+        j = self.jepa
+        if not j.delta_hours or min(j.delta_hours) <= 0:
+            raise ConfigError("jepa.delta_hours must be a non-empty list of positive values")
+        if max(j.delta_hours) > self.task.horizon_hours:
+            raise ConfigError("jepa.delta_hours must not exceed task.horizon_hours (embargo before validation)")
+        if not 0.0 < j.ema_tau <= j.ema_tau_end <= 1.0:
+            raise ConfigError("need 0 < jepa.ema_tau <= jepa.ema_tau_end <= 1")
         if self.backend.name not in ("pyg", "cugraph"):
             raise ConfigError("backend.name must be 'pyg' or 'cugraph'")
         if self.backend.name == "cugraph" and not self.backend.device.startswith("cuda"):
             raise ConfigError("the cugraph backend requires backend.device = 'cuda'")
         if self.pretrain.freeze_encoder and not self.pretrain.checkpoint:
             raise ConfigError("pretrain.freeze_encoder requires pretrain.checkpoint")
+        if self.pretrain.freeze_random_encoder and self.pretrain.checkpoint:
+            raise ConfigError("pretrain.freeze_random_encoder is a control without checkpoint")
         try:
             self.task.validate()
         except ValueError as exc:
@@ -158,6 +187,7 @@ _SECTIONS = {
     "experiment": ExperimentSection, "data": DataSection, "task": PRMergeTaskConfig,
     "features": FeatureSection, "model": ModelSection, "sampler": SamplerSection,
     "train": TrainSection, "backend": BackendSection, "pretrain": PretrainSection,
+    "jepa": JepaSection,
 }
 
 

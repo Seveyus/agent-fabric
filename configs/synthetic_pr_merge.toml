@@ -50,3 +50,13 @@ patience = 4
 [backend]
 name = "pyg"
 device = "cpu"
+
+[jepa]
+# 40 epochs: with 8 the normalised loss stays at 1.0 (predictor = mean target);
+# it reaches ~0.92 after 40 epochs on this dataset.
+delta_hours = [12.0, 24.0, 48.0]
+epochs = 40
+lr = 0.001
+ema_tau = 0.996
+ema_tau_end = 1.0
+predictor_hidden = 128

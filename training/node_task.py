@@ -107,6 +107,16 @@ def standardise(task: TemporalTask) -> dict[str, list[float]]:
     return {"mean": mean.tolist(), "std": std.tolist()}
 
 
+def subsample_train(task: TemporalTask, fraction: float, seed: int) -> None:
+    """Keep a deterministic fraction of training seeds (feature statistics are
+    computed before subsampling, so they do not change with the fraction)."""
+    s = task.splits["train"]
+    n = max(1, int(round(len(s) * fraction)))
+    g = torch.Generator().manual_seed(seed)
+    keep = torch.randperm(len(s), generator=g)[:n].sort().values
+    task.splits["train"] = type(s)(node=s.node[keep], time=s.time[keep], y=s.y[keep])
+
+
 def make_spec(cfg: ExperimentConfig) -> SamplerSpec:
     if cfg.model.encoder == "mlp":  # no message passing: sample the seeds only
         return SamplerSpec(fanout=None, default_fanout=[0], batch_size=cfg.sampler.batch_size, temporal=False)
@@ -223,6 +233,8 @@ def run_experiment(cfg: ExperimentConfig, task: TemporalTask | None = None) -> d
     task = task if task is not None else prepare_task(cfg)
     feature_names = select_features(task, cfg.features.use_history)
     norm = standardise(task)
+    if cfg.train.label_fraction < 1.0:
+        subsample_train(task, cfg.train.label_fraction, cfg.experiment.seed)
     for name, s in task.splits.items():
         if len(s) == 0:
             raise ValueError(f"split {name!r} is empty — check the task time ranges")
@@ -234,7 +246,13 @@ def run_experiment(cfg: ExperimentConfig, task: TemporalTask | None = None) -> d
     spec = make_spec(cfg)
     in_dims = {nt: task.data[nt].x.size(1) for nt in task.data.node_types}
     model = build_model(cfg, in_dims).to(device)
-    pretrain_info = load_pretrained_encoder(model, cfg) if cfg.pretrain.checkpoint else None
+    pretrain_info = None
+    if cfg.pretrain.checkpoint:
+        pretrain_info = load_pretrained_encoder(model, cfg)
+    elif cfg.pretrain.freeze_random_encoder:
+        for p in model.encoder.parameters():
+            p.requires_grad_(False)
+        pretrain_info = {"checkpoint": None, "frozen": True, "random_init": True}
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     log.info("Model %s: %d trainable parameters", cfg.model.encoder, n_params)
 
@@ -288,6 +306,7 @@ def run_experiment(cfg: ExperimentConfig, task: TemporalTask | None = None) -> d
         "name": cfg.experiment.name,
         "model": cfg.model.encoder,
         "use_history": cfg.features.use_history,
+        "label_fraction": cfg.train.label_fraction,
         "data_source": task.meta.get("data_source", cfg.data.source),
         "trainable_parameters": n_params,
         "pretrain": pretrain_info,
