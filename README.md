@@ -143,12 +143,19 @@ With a planted mechanism visible only through history, non-graph models are
 at chance (0.51–0.53) and HGT / HeteroSAGE reach 0.70 / 0.69.
 [Table](experiments/results/synthetic_pr_merge__main.md).
 
-### Temporal JEPA (synthetic PR graph)
+### Temporal JEPA (self-supervised pretraining)
 
-The self-supervised encoder beats a random encoder under a linear probe
-(+0.107 AUC) and helps with 10 % of the labels (+0.046 vs. training from
-scratch), but fine-tuning it with all labels is 0.07 *worse* than training
-from scratch. [Table](experiments/results/synthetic_pr_merge__jepa.md).
+| | Real GH graph | Synthetic PR graph |
+|---|---|---|
+| Linear probe: JEPA vs. random frozen encoder | 0.696 vs 0.651 (+0.044) | 0.633 vs 0.526 (+0.107) |
+| Fine-tuned, 10 % labels: JEPA vs. scratch | 0.695 vs 0.691 (+0.004) | 0.631 vs 0.585 (+0.046) |
+| Fine-tuned, 100 % labels: JEPA vs. scratch | 0.717 vs 0.715 (n.s.) | 0.632 vs 0.702 (−0.070) |
+
+The representation is useful on its own (on real data a linear head on the
+frozen encoder matches a supervised HGT trained on 10 % of the labels) and
+helps with few labels; with all labels it is neutral on real data and hurts
+on synthetic data. Tables: [real](experiments/results/gh_pr_merge__jepa.md),
+[synthetic](experiments/results/synthetic_pr_merge__jepa.md).
 
 ## Self-supervised objective
 
@@ -218,9 +225,9 @@ python -m benchmarks.sampling_throughput --backend cugraph --device cuda --scale
 * **Small graph gain.** Beyond engineered aggregates the GNN adds +0.005 to
   +0.0075 AUC at a large compute cost; HGT is not better than HeteroSAGE.
 * **JEPA helps only with few labels.** The self-supervised encoder beats a
-  random encoder under a linear probe and helps with 10 % of the labels, but
-  fine-tuning it with all labels is worse than training from scratch
-  (negative transfer; fine-tuning schedules were not tuned).
+  random encoder under a linear probe and helps with 10 % of the labels
+  (+0.004 on real data, +0.046 on synthetic), but gives nothing with all labels
+  (and hurts on synthetic data; fine-tuning schedules were not tuned).
 * **No temporal encoding beyond sampling** (PyG's HGTConv has no RTE), no
   calibration, no per-prediction explanations.
 * **EV fleet is synthetic.** It shows the pipeline transfers, not that it

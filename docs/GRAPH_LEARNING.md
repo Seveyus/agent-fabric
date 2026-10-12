@@ -29,7 +29,7 @@ extrapolated.
 | Temporal neighbour sampling, PyG + pyg-lib (CPU) | IMPLEMENTED, tested (no future edges) | `training/backends.py` |
 | Temporal neighbour sampling, cuGraph-PyG (GPU) | **NOT VERIFIED** — written against the 26.10 API, never executed (no usable GPU driver here) | `training/backends.py` |
 | MLP / HeteroSAGE / HGT node classifiers | IMPLEMENTED, tested | `models/hetero_gnn.py` |
-| Temporal node JEPA pretraining | IMPLEMENTED, tested; downstream benefit **not shown** | `models/temporal_jepa.py`, `training/pretrain_jepa.py` |
+| Temporal node JEPA pretraining | IMPLEMENTED, tested; helps only with few labels (§10.3) | `models/temporal_jepa.py`, `training/pretrain_jepa.py` |
 | Config-driven runs, checkpoints, multi-seed suites | IMPLEMENTED | `training/node_task.py`, `training/suite.py` |
 | Throughput benchmark | IMPLEMENTED; CPU results measured, GPU NOT RUN | `benchmarks/sampling_throughput.py` |
 | EV fleet example (synthetic) | IMPLEMENTED | `core/dataset/ev_fleet.py` |
@@ -233,8 +233,14 @@ warm-up PRs are anchors too).
   scratch (0.70): negative transfer. Lower encoder learning rates or longer
   patience were not tried.
 
-So the objective is meaningful and the machinery is verified, but in its
-current form the pretrained encoder is only useful in the low-label regime.
+* On the real GH Archive graph the objective learns faster (normalised loss
+  0.90 after 10 epochs); the frozen JEPA encoder beats a frozen random one by
+  +0.044 AUC and matches a supervised HGT trained on 10 % of the labels;
+  fine-tuning is neutral with all labels and +0.004 with 10 %.
+
+So the objective is meaningful and the machinery is verified; its measured
+benefit is a label-efficiency gain (large on synthetic data, small on real
+data), not better accuracy with all labels.
 
 The original snapshot-level JEPA (`models/world_model.py`, per-repo weekly
 windows) is kept and was fixed (it could not import or run, and its predictor
@@ -429,6 +435,33 @@ PRs included). Source: [`experiments/results/synthetic_pr_merge__jepa.md`](../ex
 | JEPA probe vs random probe | +0.107 | [+0.075, +0.139] |
 | JEPA fine-tuned vs scratch, 100 % labels | −0.070 | [−0.088, −0.052] |
 | JEPA fine-tuned vs scratch, 10 % labels | +0.046 | [+0.022, +0.069] |
+
+Real data (GH Archive graph, intrinsic features, 3 seeds; 10 pretraining
+epochs on 40,000 anchors, ~5 min each on CPU; normalised loss 0.89–0.90 at the
+end, online / target std 0.90 / 0.56–0.67 — no collapse). Source:
+[`experiments/results/gh_pr_merge__jepa.md`](../experiments/results/gh_pr_merge__jepa.md).
+
+| Variant | Test ROC-AUC |
+|---|---|
+| HGT from scratch, 100 % labels | 0.715 ± 0.002 |
+| HGT from scratch, 10 % labels | 0.691 ± 0.003 |
+| Linear probe on a random frozen HGT | 0.651 ± 0.002 |
+| Linear probe on the JEPA HGT (65 trainable parameters) | 0.696 ± 0.005 |
+| JEPA HGT fine-tuned, 100 % labels | 0.717 ± 0.001 |
+| JEPA HGT fine-tuned, 10 % labels | 0.695 ± 0.003 |
+
+| Paired comparison | Δ ROC-AUC | 95 % CI |
+|---|---|---|
+| JEPA probe vs random probe | +0.044 | [+0.039, +0.050] |
+| JEPA fine-tuned vs scratch, 100 % labels | +0.0015 | [−0.0004, +0.0034] |
+| JEPA fine-tuned vs scratch, 10 % labels | +0.0043 | [+0.0006, +0.0082] |
+
+On real data the self-supervised representation is useful on its own (a
+linear head on the frozen encoder matches a fully supervised HGT trained on
+10 % of the labels), gives a small but significant gain with 10 % of the
+labels, and is neutral with all labels — no negative transfer, unlike the
+synthetic graph. Whether the gain grows at lower label fractions or with
+longer pretraining is untested.
 
 
 ## 11. Performance: where the time goes
