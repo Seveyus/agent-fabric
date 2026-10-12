@@ -1,0 +1,1156 @@
+{
+  "environment": {
+    "backend": "pyg",
+    "segment_matmul": true,
+    "sampling": "pyg-lib on CPU",
+    "feature_gather": "PyTorch, host memory",
+    "model_device": "cpu",
+    "torch": "2.8.0+cpu",
+    "torch_geometric": "2.7.0",
+    "pyg_lib": "0.5.0+pt28cpu",
+    "cpu_threads": 4
+  },
+  "host": {
+    "platform": "Linux-7.0.0-34-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "cpu": "11th Gen Intel(R) Core(TM) i5-11300H @ 3.10GHz"
+  },
+  "rows": [
+    {
+      "graph": "task:task_pr_merge_48h.pt",
+      "num_nodes": 1387329,
+      "num_edges": 12353872,
+      "graph_mb": 395.9679527282715,
+      "train_seeds": 40000,
+      "build_or_load_seconds": 0.13317681500484468,
+      "backend_setup_seconds": 2.7802001568488777e-05,
+      "fanout": [
+        5,
+        3
+      ],
+      "batch_size": 256,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 0.09336073200393002,
+        "seeds_per_s": 54841.04387468249,
+        "nodes_per_s": 979233.9674045356,
+        "edges_per_s": 1609798.8605495666,
+        "mean_nodes_per_batch": 4571.1,
+        "mean_edges_per_batch": 7514.6,
+        "ms_per_batch": 4.668036600196501
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 4913.6714472224785,
+          "ms_per_batch": 52.099535500019556,
+          "sampling_share": 0.10091207242650874
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 2486.489214065653,
+          "ms_per_batch": 102.95640879994608,
+          "sampling_share": 0.05210685339113719
+        }
+      ],
+      "peak_rss_mb": 3011.6875,
+      "cuda_peak_mb": null
+    },
+    {
+      "graph": "task:task_pr_merge_48h.pt",
+      "num_nodes": 1387329,
+      "num_edges": 12353872,
+      "graph_mb": 395.9679527282715,
+      "train_seeds": 40000,
+      "build_or_load_seconds": 0.13317681500484468,
+      "backend_setup_seconds": 2.7802001568488777e-05,
+      "fanout": [
+        5,
+        3
+      ],
+      "batch_size": 1024,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 0.22798937799962005,
+        "seeds_per_s": 89828.74632007694,
+        "nodes_per_s": 1608557.3951634325,
+        "edges_per_s": 2653746.439016156,
+        "mean_nodes_per_batch": 18336.7,
+        "mean_edges_per_batch": 30251.3,
+        "ms_per_batch": 11.399468899981002
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 5903.822649417351,
+          "ms_per_batch": 173.44694459970924,
+          "sampling_share": 0.0687217651869414
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 2592.316339773253,
+          "ms_per_batch": 395.01351910221274,
+          "sampling_share": 0.030229576770083474
+        }
+      ],
+      "peak_rss_mb": 3011.6875,
+      "cuda_peak_mb": null
+    },
+    {
+      "graph": "task:task_pr_merge_48h.pt",
+      "num_nodes": 1387329,
+      "num_edges": 12353872,
+      "graph_mb": 395.9679527282715,
+      "train_seeds": 40000,
+      "build_or_load_seconds": 0.13317681500484468,
+      "backend_setup_seconds": 2.7802001568488777e-05,
+      "fanout": [
+        10,
+        5
+      ],
+      "batch_size": 256,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 0.10643168300157413,
+        "seeds_per_s": 48105.976111683536,
+        "nodes_per_s": 1173024.765549874,
+        "edges_per_s": 2061444.429068692,
+        "mean_nodes_per_batch": 6242.35,
+        "mean_edges_per_batch": 10970.15,
+        "ms_per_batch": 5.321584150078706
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 3951.7503812895616,
+          "ms_per_batch": 64.78141970001161,
+          "sampling_share": 0.09097148731194786
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 2172.15120121027,
+          "ms_per_batch": 117.85551570137613,
+          "sampling_share": 0.049817823681607504
+        }
+      ],
+      "peak_rss_mb": 3011.6875,
+      "cuda_peak_mb": null
+    },
+    {
+      "graph": "task:task_pr_merge_48h.pt",
+      "num_nodes": 1387329,
+      "num_edges": 12353872,
+      "graph_mb": 395.9679527282715,
+      "train_seeds": 40000,
+      "build_or_load_seconds": 0.13317681500484468,
+      "backend_setup_seconds": 2.7802001568488777e-05,
+      "fanout": [
+        10,
+        5
+      ],
+      "batch_size": 1024,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 0.26685800900304457,
+        "seeds_per_s": 76744.93291961249,
+        "nodes_per_s": 1877492.8355037072,
+        "edges_per_s": 3315287.4193478166,
+        "mean_nodes_per_batch": 25051.2,
+        "mean_edges_per_batch": 44235.55,
+        "ms_per_batch": 13.342900450152229
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 4233.288546471365,
+          "ms_per_batch": 241.89232289718348,
+          "sampling_share": 0.05411170905032666
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 1929.7186175060253,
+          "ms_per_batch": 530.6473134012776,
+          "sampling_share": 0.025400446700926074
+        }
+      ],
+      "peak_rss_mb": 3011.6875,
+      "cuda_peak_mb": null
+    },
+    {
+      "graph": "task:task_pr_merge_48h.pt",
+      "num_nodes": 1387329,
+      "num_edges": 12353872,
+      "graph_mb": 395.9679527282715,
+      "train_seeds": 40000,
+      "build_or_load_seconds": 0.13317681500484468,
+      "backend_setup_seconds": 2.7802001568488777e-05,
+      "fanout": [
+        20,
+        10
+      ],
+      "batch_size": 256,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 0.12107824800477829,
+        "seeds_per_s": 42286.703717400516,
+        "nodes_per_s": 1534239.246612397,
+        "edges_per_s": 2922011.2268723757,
+        "mean_nodes_per_batch": 9288.15,
+        "mean_edges_per_batch": 17689.6,
+        "ms_per_batch": 6.053912400238914
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 2953.3308930331723,
+          "ms_per_batch": 86.6817871996318,
+          "sampling_share": 0.07470183539552205
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 1378.864817702299,
+          "ms_per_batch": 185.65996950055705,
+          "sampling_share": 0.03602396584074757
+        }
+      ],
+      "peak_rss_mb": 3011.6875,
+      "cuda_peak_mb": null
+    },
+    {
+      "graph": "task:task_pr_merge_48h.pt",
+      "num_nodes": 1387329,
+      "num_edges": 12353872,
+      "graph_mb": 395.9679527282715,
+      "train_seeds": 40000,
+      "build_or_load_seconds": 0.13317681500484468,
+      "backend_setup_seconds": 2.7802001568488777e-05,
+      "fanout": [
+        20,
+        10
+      ],
+      "batch_size": 1024,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 0.30173434800235555,
+        "seeds_per_s": 67874.27462464472,
+        "nodes_per_s": 2473019.7438250375,
+        "edges_per_s": 4733939.007795191,
+        "mean_nodes_per_batch": 37309.75,
+        "mean_edges_per_batch": 71419.6,
+        "ms_per_batch": 15.086717400117777
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 2626.9501008906323,
+          "ms_per_batch": 389.8056531994371,
+          "sampling_share": 0.04042063235961231
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 1340.642749071696,
+          "ms_per_batch": 763.8127313999576,
+          "sampling_share": 0.020138334263215117
+        }
+      ],
+      "peak_rss_mb": 3497.19921875,
+      "cuda_peak_mb": null
+    },
+    {
+      "graph": "task:task_pr_merge_48h.pt",
+      "num_nodes": 1387329,
+      "num_edges": 12353872,
+      "graph_mb": 395.9679527282715,
+      "train_seeds": 40000,
+      "build_or_load_seconds": 0.13317681500484468,
+      "backend_setup_seconds": 2.7802001568488777e-05,
+      "fanout": [
+        10,
+        5
+      ],
+      "batch_size": 256,
+      "temporal": false,
+      "sampling": {
+        "batches": 20,
+        "seconds": 0.14319308899575844,
+        "seeds_per_s": 35755.91556762673,
+        "nodes_per_s": 1248670.5975404743,
+        "edges_per_s": 2484407.609996721,
+        "mean_nodes_per_batch": 8940.05,
+        "mean_edges_per_batch": 17787.5,
+        "ms_per_batch": 7.159654449787922
+      },
+      "train_step": []
+    },
+    {
+      "graph": "synthetic:2000_users",
+      "num_nodes": 12910,
+      "num_edges": 217026,
+      "graph_mb": 6.413291931152344,
+      "train_seeds": 2982,
+      "build_or_load_seconds": 1.6471948010002961,
+      "backend_setup_seconds": 2.473199856467545e-05,
+      "fanout": [
+        5,
+        3
+      ],
+      "batch_size": 256,
+      "temporal": true,
+      "sampling": {
+        "batches": 10,
+        "seconds": 0.03290102600294631,
+        "seeds_per_s": 75073.64663274665,
+        "nodes_per_s": 1861157.7643358738,
+        "edges_per_s": 2514936.7680080924,
+        "mean_nodes_per_batch": 6123.4,
+        "mean_edges_per_batch": 8274.4,
+        "ms_per_batch": 3.290102600294631
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 4085.893920019505,
+          "ms_per_batch": 60.45188760035671,
+          "sampling_share": 0.06843777531114177
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 1932.5379753771588,
+          "ms_per_batch": 127.81120120125706,
+          "sampling_share": 0.03442284682233112
+        }
+      ],
+      "peak_rss_mb": 3497.19921875,
+      "cuda_peak_mb": null
+    },
+    {
+      "graph": "synthetic:2000_users",
+      "num_nodes": 12910,
+      "num_edges": 217026,
+      "graph_mb": 6.413291931152344,
+      "train_seeds": 2982,
+      "build_or_load_seconds": 1.6471948010002961,
+      "backend_setup_seconds": 2.473199856467545e-05,
+      "fanout": [
+        5,
+        3
+      ],
+      "batch_size": 1024,
+      "temporal": true,
+      "sampling": {
+        "batches": 1,
+        "seconds": 0.0062840750033501536,
+        "seeds_per_s": 148629.67095428807,
+        "nodes_per_s": 3672935.1555630867,
+        "edges_per_s": 4990710.642899767,
+        "mean_nodes_per_batch": 23081.0,
+        "mean_edges_per_batch": 31362.0,
+        "ms_per_batch": 6.284075003350154
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 1,
+          "seeds_per_s": 4770.47308009296,
+          "ms_per_batch": 195.78771000669803,
+          "sampling_share": 0.03358728185870867
+        },
+        {
+          "encoder": "hgt",
+          "batches": 1,
+          "seeds_per_s": 2054.20780803643,
+          "ms_per_batch": 454.6764920014539,
+          "sampling_share": 0.014968768166485208
+        }
+      ],
+      "peak_rss_mb": 3497.19921875,
+      "cuda_peak_mb": null
+    },
+    {
+      "graph": "synthetic:2000_users",
+      "num_nodes": 12910,
+      "num_edges": 217026,
+      "graph_mb": 6.413291931152344,
+      "train_seeds": 2982,
+      "build_or_load_seconds": 1.6471948010002961,
+      "backend_setup_seconds": 2.473199856467545e-05,
+      "fanout": [
+        10,
+        5
+      ],
+      "batch_size": 256,
+      "temporal": true,
+      "sampling": {
+        "batches": 10,
+        "seconds": 0.03945840599772055,
+        "seeds_per_s": 62597.56159796947,
+        "nodes_per_s": 2108701.5021541086,
+        "edges_per_s": 2933342.0109947273,
+        "mean_nodes_per_batch": 8320.6,
+        "mean_edges_per_batch": 11574.5,
+        "ms_per_batch": 3.9458405997720547
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 3273.933275030686,
+          "ms_per_batch": 75.44442090002121,
+          "sampling_share": 0.05693595826769575
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 1474.7504163031945,
+          "ms_per_batch": 167.4859672995808,
+          "sampling_share": 0.027625168097473344
+        }
+      ],
+      "peak_rss_mb": 3497.19921875,
+      "cuda_peak_mb": null
+    },
+    {
+      "graph": "synthetic:2000_users",
+      "num_nodes": 12910,
+      "num_edges": 217026,
+      "graph_mb": 6.413291931152344,
+      "train_seeds": 2982,
+      "build_or_load_seconds": 1.6471948010002961,
+      "backend_setup_seconds": 2.473199856467545e-05,
+      "fanout": [
+        10,
+        5
+      ],
+      "batch_size": 1024,
+      "temporal": true,
+      "sampling": {
+        "batches": 1,
+        "seconds": 0.006561520000104792,
+        "seeds_per_s": 142345.0663847833,
+        "nodes_per_s": 4772217.412962226,
+        "edges_per_s": 6682140.723384179,
+        "mean_nodes_per_batch": 31313.0,
+        "mean_edges_per_batch": 43845.0,
+        "ms_per_batch": 6.561520000104792
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 1,
+          "seeds_per_s": 3321.293632090333,
+          "ms_per_batch": 281.2157259977539,
+          "sampling_share": 0.025673731339950438
+        },
+        {
+          "encoder": "hgt",
+          "batches": 1,
+          "seeds_per_s": 1526.451413202469,
+          "ms_per_batch": 611.8766650033649,
+          "sampling_share": 0.01172025902485788
+        }
+      ],
+      "peak_rss_mb": 3497.19921875,
+      "cuda_peak_mb": null
+    },
+    {
+      "graph": "synthetic:2000_users",
+      "num_nodes": 12910,
+      "num_edges": 217026,
+      "graph_mb": 6.413291931152344,
+      "train_seeds": 2982,
+      "build_or_load_seconds": 1.6471948010002961,
+      "backend_setup_seconds": 2.473199856467545e-05,
+      "fanout": [
+        20,
+        10
+      ],
+      "batch_size": 256,
+      "temporal": true,
+      "sampling": {
+        "batches": 10,
+        "seconds": 0.04199095100193517,
+        "seeds_per_s": 58822.19718925082,
+        "nodes_per_s": 2771978.1815523957,
+        "edges_per_s": 4093239.040765685,
+        "mean_nodes_per_batch": 11639.8,
+        "mean_edges_per_batch": 17187.9,
+        "ms_per_batch": 4.199095100193517
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 2359.5487198471546,
+          "ms_per_batch": 104.68103409875766,
+          "sampling_share": 0.046633400596387584
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 1078.103845933615,
+          "ms_per_batch": 229.10594460045104,
+          "sampling_share": 0.020639783524171965
+        }
+      ],
+      "peak_rss_mb": 3497.19921875,
+      "cuda_peak_mb": null
+    },
+    {
+      "graph": "synthetic:2000_users",
+      "num_nodes": 12910,
+      "num_edges": 217026,
+      "graph_mb": 6.413291931152344,
+      "train_seeds": 2982,
+      "build_or_load_seconds": 1.6471948010002961,
+      "backend_setup_seconds": 2.473199856467545e-05,
+      "fanout": [
+        20,
+        10
+      ],
+      "batch_size": 1024,
+      "temporal": true,
+      "sampling": {
+        "batches": 1,
+        "seconds": 0.0074364800020703115,
+        "seeds_per_s": 125597.0566370077,
+        "nodes_per_s": 5901179.05081204,
+        "edges_per_s": 8753738.325373972,
+        "mean_nodes_per_batch": 43884.0,
+        "mean_edges_per_batch": 65097.0,
+        "ms_per_batch": 7.4364800020703115
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 1,
+          "seeds_per_s": 2153.5477468167696,
+          "ms_per_batch": 433.7029450034606,
+          "sampling_share": 0.018219037000325133
+        },
+        {
+          "encoder": "hgt",
+          "batches": 1,
+          "seeds_per_s": 1080.20673191181,
+          "ms_per_batch": 864.6493049964192,
+          "sampling_share": 0.009186205260408118
+        }
+      ],
+      "peak_rss_mb": 3753.3671875,
+      "cuda_peak_mb": null
+    },
+    {
+      "graph": "synthetic:2000_users",
+      "num_nodes": 12910,
+      "num_edges": 217026,
+      "graph_mb": 6.413291931152344,
+      "train_seeds": 2982,
+      "build_or_load_seconds": 1.6471948010002961,
+      "backend_setup_seconds": 2.473199856467545e-05,
+      "fanout": [
+        10,
+        5
+      ],
+      "batch_size": 256,
+      "temporal": false,
+      "sampling": {
+        "batches": 10,
+        "seconds": 0.03834004399686819,
+        "seeds_per_s": 64423.50457922694,
+        "nodes_per_s": 1818855.50276615,
+        "edges_per_s": 5214235.017996589,
+        "mean_nodes_per_batch": 6973.5,
+        "mean_edges_per_batch": 19991.4,
+        "ms_per_batch": 3.834004399686819
+      },
+      "train_step": []
+    },
+    {
+      "graph": "synthetic:20000_users",
+      "num_nodes": 126578,
+      "num_edges": 2153982,
+      "graph_mb": 63.423622131347656,
+      "train_seeds": 29147,
+      "build_or_load_seconds": 16.263239266998426,
+      "backend_setup_seconds": 1.964499824680388e-05,
+      "fanout": [
+        5,
+        3
+      ],
+      "batch_size": 256,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 0.08269102399935946,
+        "seeds_per_s": 61917.240256205565,
+        "nodes_per_s": 1522885.9664499434,
+        "edges_per_s": 2063113.887685337,
+        "mean_nodes_per_batch": 6296.45,
+        "mean_edges_per_batch": 8530.05,
+        "ms_per_batch": 4.134551199967973
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 3971.9621489226092,
+          "ms_per_batch": 64.45177229834371,
+          "sampling_share": 0.07634694476451095
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 1974.9253814961958,
+          "ms_per_batch": 129.62515059989528,
+          "sampling_share": 0.03828239024336956
+        }
+      ],
+      "peak_rss_mb": 3753.3671875,
+      "cuda_peak_mb": null
+    },
+    {
+      "graph": "synthetic:20000_users",
+      "num_nodes": 126578,
+      "num_edges": 2153982,
+      "graph_mb": 63.423622131347656,
+      "train_seeds": 29147,
+      "build_or_load_seconds": 16.263239266998426,
+      "backend_setup_seconds": 1.964499824680388e-05,
+      "fanout": [
+        5,
+        3
+      ],
+      "batch_size": 1024,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 0.19374114800302777,
+        "seeds_per_s": 105708.05536715381,
+        "nodes_per_s": 2604986.1126667457,
+        "edges_per_s": 3530122.5735965576,
+        "mean_nodes_per_batch": 25234.65,
+        "mean_edges_per_batch": 34196.5,
+        "ms_per_batch": 9.687057400151389
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 4676.932655612587,
+          "ms_per_batch": 218.94692000132636,
+          "sampling_share": 0.04334940496379874
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 2049.9779503367013,
+          "ms_per_batch": 499.517567899602,
+          "sampling_share": 0.019552815209157255
+        }
+      ],
+      "peak_rss_mb": 3753.3671875,
+      "cuda_peak_mb": null
+    },
+    {
+      "graph": "synthetic:20000_users",
+      "num_nodes": 126578,
+      "num_edges": 2153982,
+      "graph_mb": 63.423622131347656,
+      "train_seeds": 29147,
+      "build_or_load_seconds": 16.263239266998426,
+      "backend_setup_seconds": 1.964499824680388e-05,
+      "fanout": [
+        10,
+        5
+      ],
+      "batch_size": 256,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 0.09253891299886163,
+        "seeds_per_s": 55328.075877258074,
+        "nodes_per_s": 1852593.621908104,
+        "edges_per_s": 2579174.449595448,
+        "mean_nodes_per_batch": 8571.85,
+        "mean_edges_per_batch": 11933.7,
+        "ms_per_batch": 4.626945649943082
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 3121.7664833325202,
+          "ms_per_batch": 82.00485249835765,
+          "sampling_share": 0.06434968468260946
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 1571.8233174106845,
+          "ms_per_batch": 162.86817809886998,
+          "sampling_share": 0.03248113081741768
+        }
+      ],
+      "peak_rss_mb": 3753.3671875,
+      "cuda_peak_mb": null
+    },
+    {
+      "graph": "synthetic:20000_users",
+      "num_nodes": 126578,
+      "num_edges": 2153982,
+      "graph_mb": 63.423622131347656,
+      "train_seeds": 29147,
+      "build_or_load_seconds": 16.263239266998426,
+      "backend_setup_seconds": 1.964499824680388e-05,
+      "fanout": [
+        10,
+        5
+      ],
+      "batch_size": 1024,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 0.20390370200038888,
+        "seeds_per_s": 100439.56926275395,
+        "nodes_per_s": 3370223.263522157,
+        "edges_per_s": 4690954.556568943,
+        "mean_nodes_per_batch": 34360.05,
+        "mean_edges_per_batch": 47825.15,
+        "ms_per_batch": 10.195185100019444
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 3175.7773389045465,
+          "ms_per_batch": 322.4407415014866,
+          "sampling_share": 0.032790846005881426
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 1509.9040694718017,
+          "ms_per_batch": 678.1887807999738,
+          "sampling_share": 0.015278843877072505
+        }
+      ],
+      "peak_rss_mb": 3753.3671875,
+      "cuda_peak_mb": null
+    },
+    {
+      "graph": "synthetic:20000_users",
+      "num_nodes": 126578,
+      "num_edges": 2153982,
+      "graph_mb": 63.423622131347656,
+      "train_seeds": 29147,
+      "build_or_load_seconds": 16.263239266998426,
+      "backend_setup_seconds": 1.964499824680388e-05,
+      "fanout": [
+        20,
+        10
+      ],
+      "batch_size": 256,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 0.1088063589995727,
+        "seeds_per_s": 47056.073257814896,
+        "nodes_per_s": 2216194.000214151,
+        "edges_per_s": 3268871.4452929795,
+        "mean_nodes_per_batch": 12056.8,
+        "mean_edges_per_batch": 17783.7,
+        "ms_per_batch": 5.440317949978635
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 2348.196113102396,
+          "ms_per_batch": 109.01985510136001,
+          "sampling_share": 0.05387810867323346
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 1084.9363395962016,
+          "ms_per_batch": 235.95854489976773,
+          "sampling_share": 0.024932205370603918
+        }
+      ],
+      "peak_rss_mb": 3753.3671875,
+      "cuda_peak_mb": null
+    },
+    {
+      "graph": "synthetic:20000_users",
+      "num_nodes": 126578,
+      "num_edges": 2153982,
+      "graph_mb": 63.423622131347656,
+      "train_seeds": 29147,
+      "build_or_load_seconds": 16.263239266998426,
+      "backend_setup_seconds": 1.964499824680388e-05,
+      "fanout": [
+        20,
+        10
+      ],
+      "batch_size": 1024,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 0.23411588900489733,
+        "seeds_per_s": 87478.04383141031,
+        "nodes_per_s": 4121279.4402853055,
+        "edges_per_s": 6080334.854889847,
+        "mean_nodes_per_batch": 48242.85,
+        "mean_edges_per_batch": 71175.15,
+        "ms_per_batch": 11.705794450244866
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 2112.290977103325,
+          "ms_per_batch": 484.781694898993,
+          "sampling_share": 0.024921028842028
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 1066.7014820250315,
+          "ms_per_batch": 959.9686672001553,
+          "sampling_share": 0.012695966041656513
+        }
+      ],
+      "peak_rss_mb": 3753.3671875,
+      "cuda_peak_mb": null
+    },
+    {
+      "graph": "synthetic:20000_users",
+      "num_nodes": 126578,
+      "num_edges": 2153982,
+      "graph_mb": 63.423622131347656,
+      "train_seeds": 29147,
+      "build_or_load_seconds": 16.263239266998426,
+      "backend_setup_seconds": 1.964499824680388e-05,
+      "fanout": [
+        10,
+        5
+      ],
+      "batch_size": 256,
+      "temporal": false,
+      "sampling": {
+        "batches": 20,
+        "seconds": 0.126989845004573,
+        "seeds_per_s": 40318.18449589906,
+        "nodes_per_s": 2159243.520536038,
+        "edges_per_s": 4321392.785228129,
+        "mean_nodes_per_batch": 13710.1,
+        "mean_edges_per_batch": 27438.65,
+        "ms_per_batch": 6.34949225022865
+      },
+      "train_step": []
+    },
+    {
+      "graph": "synthetic:60000_users",
+      "num_nodes": 381126,
+      "num_edges": 6478070,
+      "graph_mb": 190.82576751708984,
+      "train_seeds": 88107,
+      "build_or_load_seconds": 49.40997391400015,
+      "backend_setup_seconds": 2.2018000890966505e-05,
+      "fanout": [
+        5,
+        3
+      ],
+      "batch_size": 256,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 0.09313379300147062,
+        "seeds_per_s": 54974.674980961565,
+        "nodes_per_s": 1360505.0961255191,
+        "edges_per_s": 1848255.015204652,
+        "mean_nodes_per_batch": 6335.45,
+        "mean_edges_per_batch": 8606.75,
+        "ms_per_batch": 4.656689650073531
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 3850.464532583017,
+          "ms_per_batch": 66.48548450029921,
+          "sampling_share": 0.07932369057118102
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 2100.3275832248755,
+          "ms_per_batch": 121.88574870160664,
+          "sampling_share": 0.04380346641015918
+        }
+      ],
+      "peak_rss_mb": 3753.3671875,
+      "cuda_peak_mb": null
+    },
+    {
+      "graph": "synthetic:60000_users",
+      "num_nodes": 381126,
+      "num_edges": 6478070,
+      "graph_mb": 190.82576751708984,
+      "train_seeds": 88107,
+      "build_or_load_seconds": 49.40997391400015,
+      "backend_setup_seconds": 2.2018000890966505e-05,
+      "fanout": [
+        5,
+        3
+      ],
+      "batch_size": 1024,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 0.21419235999928787,
+        "seeds_per_s": 95614.9883220302,
+        "nodes_per_s": 2369641.0086787757,
+        "edges_per_s": 3209591.602624322,
+        "mean_nodes_per_batch": 25377.95,
+        "mean_edges_per_batch": 34373.5,
+        "ms_per_batch": 10.709617999964394
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 4596.228331894109,
+          "ms_per_batch": 222.79136849974748,
+          "sampling_share": 0.049312330071519916
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 2038.2433510011683,
+          "ms_per_batch": 502.393396498519,
+          "sampling_share": 0.021953445398333278
+        }
+      ],
+      "peak_rss_mb": 3753.3671875,
+      "cuda_peak_mb": null
+    },
+    {
+      "graph": "synthetic:60000_users",
+      "num_nodes": 381126,
+      "num_edges": 6478070,
+      "graph_mb": 190.82576751708984,
+      "train_seeds": 88107,
+      "build_or_load_seconds": 49.40997391400015,
+      "backend_setup_seconds": 2.2018000890966505e-05,
+      "fanout": [
+        10,
+        5
+      ],
+      "batch_size": 256,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 0.10461460400256328,
+        "seeds_per_s": 48941.541659657276,
+        "nodes_per_s": 1649846.134252642,
+        "edges_per_s": 2303827.4846798126,
+        "mean_nodes_per_batch": 8629.9,
+        "mean_edges_per_batch": 12050.7,
+        "ms_per_batch": 5.230730200128164
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 3018.103429673376,
+          "ms_per_batch": 84.82148010007222,
+          "sampling_share": 0.06881216990032142
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 1573.1774773983066,
+          "ms_per_batch": 162.72798439968028,
+          "sampling_share": 0.03514595612804474
+        }
+      ],
+      "peak_rss_mb": 3753.3671875,
+      "cuda_peak_mb": null
+    },
+    {
+      "graph": "synthetic:60000_users",
+      "num_nodes": 381126,
+      "num_edges": 6478070,
+      "graph_mb": 190.82576751708984,
+      "train_seeds": 88107,
+      "build_or_load_seconds": 49.40997391400015,
+      "backend_setup_seconds": 2.2018000890966505e-05,
+      "fanout": [
+        10,
+        5
+      ],
+      "batch_size": 1024,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 0.23433752200071467,
+        "seeds_per_s": 87395.30837890119,
+        "nodes_per_s": 2949856.233428515,
+        "edges_per_s": 4106900.9853106877,
+        "mean_nodes_per_batch": 34563.1,
+        "mean_edges_per_batch": 48120.05,
+        "ms_per_batch": 11.716876100035734
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 3155.990096815677,
+          "ms_per_batch": 324.4623616003082,
+          "sampling_share": 0.03775925577813976
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 1504.3721332259868,
+          "ms_per_batch": 680.6826431995432,
+          "sampling_share": 0.017459016943215958
+        }
+      ],
+      "peak_rss_mb": 3753.3671875,
+      "cuda_peak_mb": null
+    },
+    {
+      "graph": "synthetic:60000_users",
+      "num_nodes": 381126,
+      "num_edges": 6478070,
+      "graph_mb": 190.82576751708984,
+      "train_seeds": 88107,
+      "build_or_load_seconds": 49.40997391400015,
+      "backend_setup_seconds": 2.2018000890966505e-05,
+      "fanout": [
+        20,
+        10
+      ],
+      "batch_size": 256,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 0.11434810100035975,
+        "seeds_per_s": 44775.55775048588,
+        "nodes_per_s": 2120218.856972861,
+        "edges_per_s": 3131411.863139498,
+        "mean_nodes_per_batch": 12122.15,
+        "mean_edges_per_batch": 17903.55,
+        "ms_per_batch": 5.717405050017987
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 2236.2688382548477,
+          "ms_per_batch": 114.47639730104129,
+          "sampling_share": 0.05762445233713782
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 1029.5129798233982,
+          "ms_per_batch": 248.66126510023605,
+          "sampling_share": 0.02515394304753585
+        }
+      ],
+      "peak_rss_mb": 3753.3671875,
+      "cuda_peak_mb": null
+    },
+    {
+      "graph": "synthetic:60000_users",
+      "num_nodes": 381126,
+      "num_edges": 6478070,
+      "graph_mb": 190.82576751708984,
+      "train_seeds": 88107,
+      "build_or_load_seconds": 49.40997391400015,
+      "backend_setup_seconds": 2.2018000890966505e-05,
+      "fanout": [
+        20,
+        10
+      ],
+      "batch_size": 1024,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 0.2668703000017558,
+        "seeds_per_s": 76741.39834918032,
+        "nodes_per_s": 3637587.247414242,
+        "edges_per_s": 5365816.278508993,
+        "mean_nodes_per_batch": 48538.2,
+        "mean_edges_per_batch": 71598.85,
+        "ms_per_batch": 13.343515000087791
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 2065.447362206048,
+          "ms_per_batch": 495.7763721009542,
+          "sampling_share": 0.02685818899396159
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 1057.396947312029,
+          "ms_per_batch": 968.4158845011552,
+          "sampling_share": 0.01382528004099698
+        }
+      ],
+      "peak_rss_mb": 3936.16796875,
+      "cuda_peak_mb": null
+    },
+    {
+      "graph": "synthetic:60000_users",
+      "num_nodes": 381126,
+      "num_edges": 6478070,
+      "graph_mb": 190.82576751708984,
+      "train_seeds": 88107,
+      "build_or_load_seconds": 49.40997391400015,
+      "backend_setup_seconds": 2.2018000890966505e-05,
+      "fanout": [
+        10,
+        5
+      ],
+      "batch_size": 256,
+      "temporal": false,
+      "sampling": {
+        "batches": 20,
+        "seconds": 0.14816137500019977,
+        "seeds_per_s": 34556.91471541147,
+        "nodes_per_s": 2046768.2619683512,
+        "edges_per_s": 3805121.274011124,
+        "mean_nodes_per_batch": 15162.6,
+        "mean_edges_per_batch": 28188.6,
+        "ms_per_batch": 7.408068750009988
+      },
+      "train_step": []
+    }
+  ]
+}
