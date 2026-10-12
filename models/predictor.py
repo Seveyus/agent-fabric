@@ -29,7 +29,9 @@ class DeliveryPredictor(nn.Module):
     """
     Predicts the latent representation of the project state at T+k given:
         - s_x    : representation of state at T (from online encoder)
-        - events : compact event vector describing what happened between T and T+k
+        - events : compact event vector describing what happened strictly between
+                   the end of the context window and the start of the target window
+                   (all zeros when the windows are adjacent)
 
     Architecture: simple MLP with residual connection and layer norm.
     Kept intentionally small — the encoder does the heavy lifting.

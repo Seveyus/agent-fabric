@@ -10,6 +10,13 @@ Quick start:
 
 The script saves checkpoints to checkpoints/ and logs metrics to stdout.
 Optional: set WANDB_PROJECT env var to enable W&B logging.
+
+Validation uses a temporal split (DeliveryPairDataset.temporal_split): the
+validation pairs start after every training target window ends.
+
+Model selection: the JEPA loss is not comparable across epochs (the target
+encoder moves), so "best.pt" is selected on the validation risk-head loss when
+the risk head is trained, otherwise only "last.pt" is written.
 """
 
 from __future__ import annotations
@@ -17,19 +24,21 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import random
 import time
 from pathlib import Path
 
+import numpy as np
 import torch
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 
 from models.world_model import DeliveryWorldModel, WorldModelConfig
-from training.dataset import DeliveryPairDataset
+from training.dataset import DeliveryPairDataset, collate_fn  # noqa: F401  (collate_fn re-exported)
 
 log = logging.getLogger(__name__)
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Train the Delivery World Model")
     p.add_argument("--pairs", required=True, help="Path to pairs .pkl file")
     p.add_argument("--epochs", type=int, default=100)
@@ -44,32 +53,22 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--repr-dim", type=int, default=128)
     p.add_argument("--jepa-weight", type=float, default=1.0)
     p.add_argument("--risk-weight", type=float, default=0.3)
-    return p.parse_args()
+    p.add_argument("--seed", type=int, default=0)
+    return p.parse_args(argv)
 
 
-def collate_fn(batch: list[dict]) -> dict:
-    """
-    Custom collate: PyG handles graph batching natively.
-    Events and labels are standard tensors.
-    """
-    try:
-        from torch_geometric.data import Batch
-    except ImportError:
-        raise ImportError("torch-geometric required for training")
-
-    return {
-        "graph_t": Batch.from_data_list([item["graph_t"] for item in batch]),
-        "graph_t_k": Batch.from_data_list([item["graph_t_k"] for item in batch]),
-        "events": torch.stack([item["events"] for item in batch]),
-        "labels": torch.stack([item["labels"] for item in batch]),
-    }
+def seed_everything(seed: int) -> None:
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
 
 
-def train(args: argparse.Namespace) -> None:
+def train(args: argparse.Namespace) -> dict:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
+    seed_everything(args.seed)
     device = torch.device(args.device)
     log.info("Training on device: %s", device)
 
@@ -77,13 +76,15 @@ def train(args: argparse.Namespace) -> None:
     # Dataset                                                              #
     # ------------------------------------------------------------------ #
     dataset = DeliveryPairDataset(args.pairs)
-    n_val = max(1, int(len(dataset) * args.val_split))
-    n_train = len(dataset) - n_val
-    train_ds, val_ds = random_split(dataset, [n_train, n_val])
+    train_ds, val_ds = dataset.temporal_split(args.val_split)
+    n_train, n_val = len(train_ds), len(val_ds)
+    if n_train == 0 or n_val == 0:
+        raise ValueError(f"temporal split produced train={n_train} val={n_val}; collect a longer history")
 
     train_loader = DataLoader(
         train_ds, batch_size=args.batch_size, shuffle=True,
-        collate_fn=collate_fn, num_workers=0, drop_last=True,
+        collate_fn=collate_fn, num_workers=0, drop_last=n_train > args.batch_size,
+        generator=torch.Generator().manual_seed(args.seed),
     )
     val_loader = DataLoader(
         val_ds, batch_size=args.batch_size, shuffle=False,
@@ -125,7 +126,16 @@ def train(args: argparse.Namespace) -> None:
     # ------------------------------------------------------------------ #
     ckpt_dir = Path(args.checkpoint_dir)
     ckpt_dir.mkdir(parents=True, exist_ok=True)
-    best_val_loss = float("inf")
+    best_val_risk = float("inf")
+    total_steps = max(1, args.epochs * len(train_loader))
+    step = 0
+    history: list[dict] = []
+
+    def _save(path: Path, epoch: int) -> None:
+        torch.save(
+            {"epoch": epoch, "model": model.state_dict(), "config": model.config_dict(), "args": vars(args)},
+            path,
+        )
 
     for epoch in range(1, args.epochs + 1):
         t0 = time.time()
@@ -133,16 +143,14 @@ def train(args: argparse.Namespace) -> None:
         train_metrics: dict[str, list[float]] = {}
 
         for batch in train_loader:
-            batch = {
-                k: v.to(device) if isinstance(v, torch.Tensor) else v.to(device)
-                for k, v in batch.items()
-            }
+            batch = {k: v.to(device) for k, v in batch.items()}
             optimizer.zero_grad()
             loss, metrics = model.training_step(batch)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
-            model.update_target()   # EMA update — must be AFTER optimizer.step()
+            step += 1
+            metrics["ema_tau"] = model.update_target(progress=step / total_steps)  # AFTER optimizer.step()
 
             for k, v in metrics.items():
                 train_metrics.setdefault(k, []).append(v)
@@ -154,10 +162,7 @@ def train(args: argparse.Namespace) -> None:
         val_metrics: dict[str, list[float]] = {}
         with torch.no_grad():
             for batch in val_loader:
-                batch = {
-                    k: v.to(device) if isinstance(v, torch.Tensor) else v
-                    for k, v in batch.items()
-                }
+                batch = {k: v.to(device) for k, v in batch.items()}
                 _, metrics = model.training_step(batch)
                 for k, v in metrics.items():
                     val_metrics.setdefault(k, []).append(v)
@@ -168,13 +173,22 @@ def train(args: argparse.Namespace) -> None:
 
         log.info(
             "Epoch %3d/%d  train_loss=%.4f  val_loss=%.4f  jepa=%.4f  "
-            "risk_acc=%.3f  lr=%.2e  t=%.1fs",
+            "repr_std=%.3f  risk_acc=%.3f  lr=%.2e  t=%.1fs",
             epoch, args.epochs, train_loss, val_loss,
             _mean(train_metrics.get("jepa_loss", [])),
+            _mean(train_metrics.get("repr_std", [])),
             _mean(train_metrics.get("risk_acc", [])),
             scheduler.get_last_lr()[0],
             elapsed,
         )
+        history.append({
+            "epoch": epoch,
+            "train_loss": train_loss,
+            "val_loss": val_loss,
+            "val_jepa_loss": _mean(val_metrics.get("jepa_loss", [])),
+            "val_risk_loss": _mean(val_metrics.get("risk_loss", [])),
+            "train_repr_std": _mean(train_metrics.get("repr_std", [])),
+        })
 
         if wandb_run:
             wandb_run.log({
@@ -189,16 +203,19 @@ def train(args: argparse.Namespace) -> None:
         # Save checkpoint
         if epoch % args.save_every == 0:
             path = ckpt_dir / f"epoch_{epoch:04d}.pt"
-            torch.save({"epoch": epoch, "model": model.state_dict()}, path)
+            _save(path, epoch)
             log.info("Saved checkpoint: %s", path)
 
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            torch.save({"epoch": epoch, "model": model.state_dict()}, ckpt_dir / "best.pt")
+        val_risk = _mean(val_metrics.get("risk_loss", []))
+        if "risk_loss" in val_metrics and val_risk < best_val_risk:
+            best_val_risk = val_risk
+            _save(ckpt_dir / "best.pt", epoch)
 
-    log.info("Training complete. Best val loss: %.4f", best_val_loss)
+    _save(ckpt_dir / "last.pt", args.epochs)
+    log.info("Training complete. Best val risk loss: %.4f", best_val_risk)
     if wandb_run:
         wandb_run.finish()
+    return {"history": history, "best_val_risk_loss": best_val_risk}
 
 
 def _mean(values: list[float]) -> float:

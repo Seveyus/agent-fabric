@@ -34,8 +34,28 @@ FILE_FEAT_DIM = 8
 CONTRIB_FEAT_DIM = 6
 MILE_FEAT_DIM = 6
 EVENT_FEAT_DIM = 16  # inter-snapshot event vector
+MAX_CONTRIBUTORS = 20  # contributor rows are capped per snapshot
 
 FILE_ZONES = ["auth", "api", "db", "infra", "test", "config", "frontend", "other"]
+
+# Graph schema of a snapshot. Every forward relation has an explicit reverse
+# relation so that every node type receives messages (HGTConv only returns
+# embeddings for node types that are the destination of at least one edge type).
+NODE_TYPES = ["pr", "file_zone", "contributor", "milestone"]
+FORWARD_EDGE_TYPES = [
+    ("pr", "touches", "file_zone"),
+    ("contributor", "opened", "pr"),
+    ("pr", "targets", "milestone"),
+    ("contributor", "committed_to", "file_zone"),
+]
+EDGE_TYPES = FORWARD_EDGE_TYPES + [(d, f"rev_{r}", s) for s, r, d in FORWARD_EDGE_TYPES]
+NODE_FEAT_DIMS = {
+    "pr": PR_FEAT_DIM,
+    "file_zone": FILE_FEAT_DIM,
+    "contributor": CONTRIB_FEAT_DIM,
+    "milestone": MILE_FEAT_DIM,
+}
+METADATA = (NODE_TYPES, EDGE_TYPES)
 
 # Labels that signal a revert / regression
 REVERT_KEYWORDS = {"revert", "rollback", "undo", "hotfix", "fix regression"}
@@ -43,6 +63,24 @@ REVERT_KEYWORDS = {"revert", "rollback", "undo", "hotfix", "fix regression"}
 
 def _parse_ts(ts: str) -> datetime:
     return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+
+
+def _zone_for_title(title: str) -> str:
+    """Coarse file zone guessed from a PR title (GH Archive has no file paths)."""
+    t = title.lower()
+    if any(k in t for k in ("auth", "token", "login")):
+        return "auth"
+    if any(k in t for k in ("db", "migration", "schema")):
+        return "db"
+    if any(k in t for k in ("deploy", "ci", "infra")):
+        return "infra"
+    if "test" in t:
+        return "test"
+    return "other"
+
+
+def _zone_for_ref(ref: str) -> str:
+    return "infra" if "deploy" in ref or "release" in ref else "other"
 
 
 def _zone_for_path(path: str) -> str:
@@ -201,8 +239,8 @@ class Snapshot:
     # Private feature builders                                             #
     # ------------------------------------------------------------------ #
 
-    def _pr_features(self) -> np.ndarray:
-        """One row per PR touched in this window. Shape: (n_prs, PR_FEAT_DIM)."""
+    def _prs(self) -> dict[int, dict]:
+        """PRs touched in this window, in first-seen order (defines PR node ids)."""
         prs: dict[int, dict] = {}
         for ev in self.events:
             if ev["type"] not in {"pr_opened", "pr_merged", "pr_closed", "pr_reopened"}:
@@ -211,8 +249,67 @@ class Snapshot:
             if num is None:
                 continue
             if num not in prs:
-                prs[num] = {"events": [], "payload": ev["payload"]}
+                prs[num] = {"events": [], "payload": ev["payload"], "author": None}
             prs[num]["events"].append(ev["type"])
+            if ev["type"] == "pr_opened":
+                prs[num]["author"] = ev["actor"]
+        return prs
+
+    def _contributors(self) -> list[str]:
+        """Contributor logins in first-seen order, capped (defines contributor node ids)."""
+        seen: dict[str, None] = {}
+        for ev in self.events:
+            seen.setdefault(ev["actor"], None)
+        return list(seen)[:MAX_CONTRIBUTORS]
+
+    def to_edge_index(self) -> dict[tuple[str, str, str], np.ndarray]:
+        """
+        Edges observed in this window, consistent with to_node_features() row order.
+
+        Only relations that are actually observed are emitted:
+          contributor -opened-> pr          : actor of the pr_opened event
+          pr -touches-> file_zone           : zone guessed from the PR title
+          pr -targets-> milestone           : every PR -> the single window node
+          contributor -committed_to-> zone  : zone guessed from the pushed ref
+        Reverse relations (rev_*) are added for every forward relation.
+        """
+        prs = self._prs()
+        contribs = {c: i for i, c in enumerate(self._contributors())}
+        zone_idx = {z: i for i, z in enumerate(FILE_ZONES)}
+
+        opened, touches, targets = [], [], []
+        for i, pr in enumerate(prs.values()):
+            author = pr["author"]
+            if author is not None and author in contribs:
+                opened.append((contribs[author], i))
+            touches.append((i, zone_idx[_zone_for_title(pr["payload"].get("title", ""))]))
+            targets.append((i, 0))
+
+        committed = set()
+        for ev in self.events:
+            if ev["type"] == "push" and ev["actor"] in contribs:
+                zone = _zone_for_ref(ev["payload"].get("ref", ""))
+                committed.add((contribs[ev["actor"]], zone_idx[zone]))
+
+        def _arr(pairs) -> np.ndarray:
+            if not pairs:
+                return np.zeros((2, 0), dtype=np.int64)
+            return np.asarray(sorted(pairs), dtype=np.int64).T
+
+        fwd = {
+            ("pr", "touches", "file_zone"): _arr(touches),
+            ("contributor", "opened", "pr"): _arr(opened),
+            ("pr", "targets", "milestone"): _arr(targets),
+            ("contributor", "committed_to", "file_zone"): _arr(committed),
+        }
+        out = dict(fwd)
+        for (s, r, d), ei in fwd.items():
+            out[(d, f"rev_{r}", s)] = ei[::-1].copy()
+        return out
+
+    def _pr_features(self) -> np.ndarray:
+        """One row per PR touched in this window. Shape: (n_prs, PR_FEAT_DIM)."""
+        prs = self._prs()
 
         if not prs:
             return np.zeros((1, PR_FEAT_DIM), dtype=np.float32)
@@ -248,15 +345,11 @@ class Snapshot:
             if ev["type"] == "push":
                 # We don't have file paths in GH Archive push events directly
                 # — use ref as a proxy signal
-                ref = ev["payload"].get("ref", "")
-                zone = "infra" if "deploy" in ref or "release" in ref else "other"
+                zone = _zone_for_ref(ev["payload"].get("ref", ""))
                 zone_push_count[zone] += ev["payload"].get("commit_count", 0)
             elif ev["type"] in {"pr_merged", "pr_closed"}:
                 title = ev["payload"].get("title", "").lower()
-                zone = "auth" if any(k in title for k in ("auth", "token", "login")) else \
-                       "db" if any(k in title for k in ("db", "migration", "schema")) else \
-                       "infra" if any(k in title for k in ("deploy", "ci", "infra")) else \
-                       "test" if "test" in title else "other"
+                zone = _zone_for_title(title)
                 zone_pr_count[zone] += 1
                 if any(kw in title for kw in REVERT_KEYWORDS):
                     zone_revert_count[zone] += 1
@@ -306,7 +399,7 @@ class Snapshot:
                 float(counts.get("pr_review_changes_requested", 0) > 0),
                 min(1.0, len(ev_types) / 20.0),
             ], dtype=np.float32))
-        return np.stack(rows[:20])  # cap at 20 contributors
+        return np.stack(rows[:MAX_CONTRIBUTORS])
 
     def _milestone_features(self) -> np.ndarray:
         """Single-row milestone / release window features. Shape: (1, MILE_FEAT_DIM)."""

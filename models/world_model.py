@@ -16,7 +16,8 @@ from __future__ import annotations
 
 import copy
 import logging
-from dataclasses import dataclass
+import math
+from dataclasses import asdict, dataclass
 
 import torch
 import torch.nn as nn
@@ -37,7 +38,8 @@ class WorldModelConfig:
     num_encoder_layers: int = 3
     predictor_hidden: int = 512
     predictor_layers: int = 3
-    ema_tau: float = 0.99
+    ema_tau: float = 0.99          # EMA momentum at the start of training
+    ema_tau_end: float = 1.0       # cosine-annealed to this value (BYOL-style schedule)
     jepa_loss_weight: float = 1.0
     risk_loss_weight: float = 0.3   # small to avoid distorting representations
     dropout: float = 0.1
@@ -51,11 +53,16 @@ class DeliveryWorldModel(nn.Module):
         L = λ_jepa * ||s_y - ŝ_y||² + λ_risk * BCE(risk_head(s_x), labels)
 
     where:
-        s_y   = target_encoder(graph_t_k)   [stop gradient]
-        ŝ_y   = predictor(online_encoder(graph_t), events)
-        s_x   = online_encoder(graph_t)
+        s_x   = online_encoder(graph_t)               context: window [t, t+w)
+        s_y   = target_encoder(graph_t_k)             target:  window [t+k, t+k+w), stop-gradient
+        ŝ_y   = predictor(s_x, events_gap)
+        events_gap = event summary of [t+w, t+k), i.e. strictly between the two
+                     windows. It must NOT summarise the target window itself,
+                     otherwise the predictor is handed the answer.
 
-    The target encoder is updated via EMA after each optimizer step.
+    The target encoder is updated via EMA after each optimizer step. EMA +
+    predictor + stop-gradient is the BYOL/I-JEPA recipe that empirically avoids
+    collapse; it is not a guarantee, so representation_std is logged.
     """
 
     def __init__(self, config: WorldModelConfig | None = None) -> None:
@@ -125,7 +132,12 @@ class DeliveryWorldModel(nn.Module):
         jepa_loss = F.mse_loss(s_y_hat, s_y)
 
         total_loss = self.cfg.jepa_loss_weight * jepa_loss
-        metrics = {"jepa_loss": jepa_loss.item()}
+        metrics = {
+            "jepa_loss": jepa_loss.item(),
+            # collapse monitors: per-dim std across the batch
+            "repr_std": s_x.detach().std(dim=0).mean().item() if s_x.size(0) > 1 else float("nan"),
+            "target_std": s_y.std(dim=0).mean().item() if s_y.size(0) > 1 else float("nan"),
+        }
 
         # Optional supervised risk head
         if labels is not None and self.cfg.risk_loss_weight > 0:
@@ -142,10 +154,27 @@ class DeliveryWorldModel(nn.Module):
         metrics["total_loss"] = total_loss.item()
         return total_loss, metrics
 
+    def ema_tau_at(self, progress: float) -> float:
+        """Cosine schedule from ema_tau (progress=0) to ema_tau_end (progress=1)."""
+        progress = min(max(progress, 0.0), 1.0)
+        start, end = self.cfg.ema_tau, self.cfg.ema_tau_end
+        return end - (end - start) * (math.cos(math.pi * progress) + 1.0) / 2.0
+
     @torch.no_grad()
-    def update_target(self) -> None:
-        """EMA update of target encoder. Call AFTER optimizer.step()."""
-        self.target_encoder.ema_update(self.online_encoder, tau=self.cfg.ema_tau)
+    def update_target(self, progress: float | None = None) -> float:
+        """EMA update of target encoder. Call AFTER optimizer.step().
+
+        Args:
+            progress: fraction of training completed in [0, 1]; None keeps tau fixed.
+        Returns:
+            the tau that was used.
+        """
+        tau = self.cfg.ema_tau if progress is None else self.ema_tau_at(progress)
+        self.target_encoder.ema_update(self.online_encoder, tau=tau)
+        return tau
+
+    def config_dict(self) -> dict:
+        return asdict(self.cfg)
 
     def parameter_groups(self, lr: float = 1e-4, predictor_lr_factor: float = 2.0) -> list[dict]:
         """

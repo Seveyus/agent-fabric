@@ -8,19 +8,20 @@ Key metrics:
 
 Quick eval:
     python -m training.evaluate --checkpoint checkpoints/best.pt --pairs data/pairs_14d.pkl
+
+By default only the temporally held-out split is scored (--split val). Scoring
+the training pairs ("--split all") measures fit, not generalisation.
 """
 
 from __future__ import annotations
 
 import argparse
 import logging
-import pickle
-from pathlib import Path
 
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
-from sklearn.metrics import roc_auc_score, classification_report
+from sklearn.metrics import roc_auc_score
 
 from models.world_model import DeliveryWorldModel, WorldModelConfig
 from training.dataset import DeliveryPairDataset, collate_fn
@@ -28,7 +29,22 @@ from training.dataset import DeliveryPairDataset, collate_fn
 log = logging.getLogger(__name__)
 
 
-def evaluate(checkpoint_path: str, pairs_path: str, device: str = "cpu") -> dict:
+def effective_rank(z: torch.Tensor) -> float:
+    """exp(entropy of normalised singular values) — Roy & Vetterli, 2007.
+    Close to 1 means collapsed representations; close to dim means isotropic."""
+    z = z - z.mean(dim=0, keepdim=True)
+    sv = torch.linalg.svdvals(z)
+    p = sv / sv.sum().clamp_min(1e-12)
+    return float(torch.exp(-(p * torch.log(p.clamp_min(1e-12))).sum()))
+
+
+def evaluate(
+    checkpoint_path: str,
+    pairs_path: str,
+    device: str = "cpu",
+    split: str = "val",
+    val_fraction: float | None = None,
+) -> dict:
     """
     Load a checkpoint and evaluate on a pairs dataset.
 
@@ -36,23 +52,29 @@ def evaluate(checkpoint_path: str, pairs_path: str, device: str = "cpu") -> dict
     """
     device_obj = torch.device(device)
 
-    state = torch.load(checkpoint_path, map_location=device_obj)
-    model = DeliveryWorldModel(WorldModelConfig()).to(device_obj)
+    state = torch.load(checkpoint_path, map_location=device_obj, weights_only=False)
+    cfg = WorldModelConfig(**state["config"]) if "config" in state else WorldModelConfig()
+    model = DeliveryWorldModel(cfg).to(device_obj)
     model.load_state_dict(state["model"])
     model.eval()
 
     dataset = DeliveryPairDataset(pairs_path)
-    loader = DataLoader(dataset, batch_size=32, shuffle=False, collate_fn=collate_fn)
+    if split == "val":
+        if val_fraction is None:
+            val_fraction = state.get("args", {}).get("val_split", 0.1)
+        _, eval_ds = dataset.temporal_split(val_fraction)
+    elif split == "all":
+        eval_ds = dataset
+    else:
+        raise ValueError("split must be 'val' or 'all'")
+    loader = DataLoader(eval_ds, batch_size=32, shuffle=False, collate_fn=collate_fn)
 
     all_s_x, all_s_y, all_s_y_hat = [], [], []
     all_labels, all_logits = [], []
 
     with torch.no_grad():
         for batch in loader:
-            batch = {
-                k: v.to(device_obj) if isinstance(v, torch.Tensor) else v
-                for k, v in batch.items()
-            }
+            batch = {k: v.to(device_obj) for k, v in batch.items()}
             s_x = model.online_encoder(batch["graph_t"])
             s_y = model.target_encoder(batch["graph_t_k"])
             s_y_hat = model.predictor(s_x, batch["events"])
@@ -74,8 +96,12 @@ def evaluate(checkpoint_path: str, pairs_path: str, device: str = "cpu") -> dict
     pred_mse = torch.nn.functional.mse_loss(s_y_hat, s_y).item()
     pred_cos = torch.nn.functional.cosine_similarity(s_y_hat, s_y).mean().item()
 
-    # Representation collapse check: std of representations should be > 0.1
+    # Representation collapse checks
     repr_std = s_x.std(dim=0).mean().item()
+    repr_rank = effective_rank(s_x)
+    # Baseline for the predictor: "nothing changes" (ŝ_y = s_x). The predictor
+    # is only useful if it beats this.
+    identity_mse = torch.nn.functional.mse_loss(s_x, s_y).item()
 
     # Downstream classification
     probs = 1 / (1 + np.exp(-logits))  # sigmoid
@@ -90,8 +116,10 @@ def evaluate(checkpoint_path: str, pairs_path: str, device: str = "cpu") -> dict
 
     metrics = {
         "prediction_mse": pred_mse,
+        "identity_baseline_mse": identity_mse,
         "prediction_cosine_sim": pred_cos,
         "representation_std": repr_std,
+        "representation_effective_rank": repr_rank,
         "n_samples": len(labels),
         **aucs,
     }
@@ -121,10 +149,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--checkpoint", required=True)
     p.add_argument("--pairs", required=True)
     p.add_argument("--device", default="cpu")
+    p.add_argument("--split", choices=["val", "all"], default="val")
     return p.parse_args()
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     args = parse_args()
-    evaluate(args.checkpoint, args.pairs, args.device)
+    evaluate(args.checkpoint, args.pairs, args.device, split=args.split)

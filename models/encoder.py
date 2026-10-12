@@ -1,23 +1,24 @@
 """
 Delivery State Encoder — heterogeneous graph encoder for project snapshots.
 
-Architecture: Linear projection per node type → 3-layer HGT → global mean pool → MLP head.
+Architecture: Linear projection per node type → L-layer HGT (residual) →
+per-node-type mean pool → concat → MLP head.
 
-HGT (Heterogeneous Graph Transformer) handles multiple node types and edge types
-natively, making it ideal for graphs where PRs, contributors, file zones, and
-milestones have different feature spaces and interact differently.
+HGT (Heterogeneous Graph Transformer) keeps separate key/query/value and
+message projections per node type and a relation-specific attention/message
+matrix per edge type, which is why it is used here: PRs, contributors, file
+zones and milestones have different feature spaces and interact through
+different relations.
 
 Reference: "Heterogeneous Graph Transformer" — Hu et al., 2020
            https://arxiv.org/abs/2003.01332
 
-Node types:
-    pr          (PR_FEAT_DIM  = 12)
-    file_zone   (FILE_FEAT_DIM = 8)
-    contributor (CONTRIB_FEAT_DIM = 6)
-    milestone   (MILE_FEAT_DIM = 6)
+Node types and feature dims are defined in core.dataset.graph_builder. Every
+forward relation has a reverse relation (rev_*) so all node types receive
+messages; without them HGTConv drops node types that are never a destination.
 
 Output: a single vector of shape (batch, REPR_DIM) representing the delivery
-        state of the project at time T.
+        state of the project during one time window.
 """
 
 from __future__ import annotations
@@ -26,7 +27,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# Lazy import to avoid hard-failing if torch-geometric is not installed
 try:
     from torch_geometric.nn import HGTConv, global_mean_pool
     from torch_geometric.data import HeteroData
@@ -34,29 +34,14 @@ try:
 except ImportError:
     HAS_PYG = False
 
-from core.dataset.graph_builder import (
-    PR_FEAT_DIM,
-    FILE_FEAT_DIM,
-    CONTRIB_FEAT_DIM,
-    MILE_FEAT_DIM,
+from core.dataset.graph_builder import (  # noqa: F401  (re-exported for backward compatibility)
+    EDGE_TYPES,
+    METADATA,
+    NODE_FEAT_DIMS,
+    NODE_TYPES,
 )
 
 REPR_DIM = 128  # output representation dimension
-
-NODE_TYPES = ["pr", "file_zone", "contributor", "milestone"]
-EDGE_TYPES = [
-    ("pr", "touches", "file_zone"),
-    ("contributor", "opened", "pr"),
-    ("pr", "targets", "milestone"),
-    ("contributor", "committed_to", "file_zone"),
-]
-NODE_FEAT_DIMS = {
-    "pr": PR_FEAT_DIM,
-    "file_zone": FILE_FEAT_DIM,
-    "contributor": CONTRIB_FEAT_DIM,
-    "milestone": MILE_FEAT_DIM,
-}
-METADATA = (NODE_TYPES, EDGE_TYPES)
 
 
 class DeliveryEncoder(nn.Module):
@@ -98,9 +83,9 @@ class DeliveryEncoder(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.norm = nn.LayerNorm(hidden_dim)
 
-        # Final projection to representation space
+        # Final projection to representation space (one pooled vector per node type)
         self.output_proj = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim),
+            nn.Linear(hidden_dim * len(NODE_TYPES), hidden_dim),
             nn.GELU(),
             nn.Linear(hidden_dim, repr_dim),
         )
@@ -108,44 +93,36 @@ class DeliveryEncoder(nn.Module):
     def forward(self, data: "HeteroData") -> torch.Tensor:
         """
         Args:
-            data: PyG HeteroData batch with node features x_dict and edge_index_dict.
+            data: PyG HeteroData (single graph or Batch) containing every node
+                  type in NODE_TYPES.
 
         Returns:
-            Tensor of shape (batch_size, repr_dim) — one vector per graph.
+            Tensor of shape (num_graphs, repr_dim).
         """
-        # Project each node type to hidden_dim
-        x_dict = {
-            ntype: F.gelu(self.input_proj[ntype](data[ntype].x))
-            for ntype in NODE_TYPES
-            if ntype in data.node_types
-        }
+        missing = [nt for nt in NODE_TYPES if nt not in data.node_types]
+        if missing:
+            raise ValueError(f"snapshot graph is missing node types {missing}")
 
-        # Fill missing node types with zeros so HGT doesn't fail
-        for ntype in NODE_TYPES:
-            if ntype not in x_dict:
-                x_dict[ntype] = torch.zeros(1, self.input_proj[list(self.input_proj.keys())[0]].out_features)
+        x_dict = {nt: F.gelu(self.input_proj[nt](data[nt].x)) for nt in NODE_TYPES}
 
-        # Graph convolution
         for conv in self.convs:
-            x_dict_new = conv(x_dict, data.edge_index_dict)
-            x_dict = {k: self.dropout(F.gelu(v + x_dict.get(k, 0))) for k, v in x_dict_new.items()}
+            out = conv(x_dict, data.edge_index_dict)
+            # Residual connection; node types without incoming edges keep their state.
+            x_dict = {
+                nt: self.dropout(F.gelu(out[nt] + x_dict[nt])) if out.get(nt) is not None else x_dict[nt]
+                for nt in NODE_TYPES
+            }
 
-        # Concatenate all node representations and pool per graph
-        all_x = torch.cat([x_dict[nt] for nt in NODE_TYPES if nt in x_dict], dim=0)
-
-        # Build batch vector mapping each node to its graph index
-        batch_parts = []
+        num_graphs = int(getattr(data, "num_graphs", 1))
+        pooled = []
         for nt in NODE_TYPES:
-            if nt in data.node_types and hasattr(data[nt], "batch"):
-                batch_parts.append(data[nt].batch)
-        if batch_parts:
-            batch = torch.cat(batch_parts, dim=0)
-        else:
-            batch = torch.zeros(all_x.size(0), dtype=torch.long, device=all_x.device)
-
-        pooled = global_mean_pool(all_x, batch)          # (B, hidden_dim)
-        pooled = self.norm(pooled)
-        return self.output_proj(pooled)                   # (B, repr_dim)
+            batch = getattr(data[nt], "batch", None)
+            if batch is None:
+                batch = torch.zeros(x_dict[nt].size(0), dtype=torch.long, device=x_dict[nt].device)
+            # Mean per node type, so large node sets (PRs, contributors) do not
+            # dominate the pooled vector.
+            pooled.append(self.norm(global_mean_pool(x_dict[nt], batch, size=num_graphs)))
+        return self.output_proj(torch.cat(pooled, dim=-1))   # (B, repr_dim)
 
     @torch.no_grad()
     def ema_update(self, online: "DeliveryEncoder", tau: float = 0.99) -> None:
@@ -154,4 +131,6 @@ class DeliveryEncoder(nn.Module):
         Call after each optimizer step on the online encoder.
         """
         for p_target, p_online in zip(self.parameters(), online.parameters()):
-            p_target.data = tau * p_target.data + (1.0 - tau) * p_online.data
+            p_target.mul_(tau).add_(p_online.detach(), alpha=1.0 - tau)
+        for b_target, b_online in zip(self.buffers(), online.buffers()):
+            b_target.copy_(b_online)

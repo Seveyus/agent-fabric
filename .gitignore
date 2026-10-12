@@ -37,3 +37,8 @@ storage/reports/
 
 .codex
 .env.example
+# Local datasets, checkpoints and run outputs (results that are reported in the
+# docs are copied to experiments/results/ and committed)
+data/
+checkpoints/
+runs/
