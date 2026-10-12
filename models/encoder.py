@@ -105,8 +105,10 @@ class DeliveryEncoder(nn.Module):
 
         x_dict = {nt: F.gelu(self.input_proj[nt](data[nt].x)) for nt in NODE_TYPES}
 
+        # HGTConv requires edge_index_dict in metadata order (see models/hetero_gnn.py).
+        edges = {et: data.edge_index_dict[et] for et in EDGE_TYPES if et in data.edge_index_dict}
         for conv in self.convs:
-            out = conv(x_dict, data.edge_index_dict)
+            out = conv(x_dict, edges)
             # Residual connection; node types without incoming edges keep their state.
             x_dict = {
                 nt: self.dropout(F.gelu(out[nt] + x_dict[nt])) if out.get(nt) is not None else x_dict[nt]

@@ -23,6 +23,16 @@ seed nodes (PyG and cuGraph-PyG loaders both follow this convention).
 
 Note: PyG's HGTConv does not implement HGT's relative temporal encoding (RTE).
 Time enters this model only through temporal neighbour sampling.
+
+PyG HGTConv pitfall (verified on torch_geometric 2.7.0 and current master):
+HGTConv flattens relation types in the iteration order of ``edge_index_dict``
+and feeds them to ``HeteroLinear(..., is_sorted=True)``. If that order differs
+from the ``metadata`` edge-type order — which is the normal case for graphs
+whose edge types were inserted as forward/reverse pairs — relation-specific
+K/V weights are applied to the wrong segments *silently* (naive path) or the
+segment-matmul path crashes with negative split sizes. ``ordered_edges``
+below re-orders the dict to the metadata order before every call;
+tests/ml/test_models_and_config.py has a regression test.
 """
 
 from __future__ import annotations
@@ -31,6 +41,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn import HeteroConv, HGTConv, SAGEConv
+
+
+def ordered_edges(edge_index_dict: dict, edge_types: list) -> dict:
+    """edge_index_dict restricted to and ordered like ``edge_types`` (see module note)."""
+    return {et: edge_index_dict[et] for et in edge_types if et in edge_index_dict}
 
 
 def _seed_rows(x: torch.Tensor, batch, seed_type: str) -> torch.Tensor:
@@ -95,7 +110,8 @@ class HGT(nn.Module):
     def __init__(self, in_dims: dict[str, int], metadata, hidden: int = 64, num_layers: int = 2,
                  heads: int = 2, dropout: float = 0.1, **_: object) -> None:
         super().__init__()
-        node_types, _ = metadata
+        node_types, edge_types = metadata
+        self.edge_types = list(edge_types)
         self.inp = _InputProjection(in_dims, hidden)
         self.convs = nn.ModuleList([HGTConv(hidden, hidden, metadata, heads=heads) for _ in range(num_layers)])
         self.norms = nn.ModuleList([
@@ -106,8 +122,9 @@ class HGT(nn.Module):
 
     def forward(self, batch, seed_type: str) -> torch.Tensor:
         h = {nt: F.gelu(v) for nt, v in self.inp(batch.x_dict).items()}
+        edges = ordered_edges(batch.edge_index_dict, self.edge_types)
         for conv, norm in zip(self.convs, self.norms):
-            out = conv(h, batch.edge_index_dict)
+            out = conv(h, edges)
             # HGTConv already mixes in a learned skip connection; out[nt] is None
             # for node types that received no edges in this batch.
             h = {

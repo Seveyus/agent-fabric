@@ -105,3 +105,40 @@ def test_graph_recovers_history_signal_that_mlp_cannot(tmp_path):
         aucs[enc] = run_experiment(config_from_dict(raw))["test"]["roc_auc"]
     assert aucs["mlp"] < 0.6
     assert aucs["sage"] > aucs["mlp"] + 0.05, aucs
+
+
+def test_pyg_hgtconv_is_order_sensitive_and_our_wrapper_is_not(small_task):
+    """Regression test for the HGTConv edge-order pitfall (see models/hetero_gnn.py)."""
+    import torch_geometric.backend as pyg_backend
+    from torch_geometric.nn import HGTConv
+
+    from models.hetero_gnn import HGT
+
+    torch.manual_seed(0)
+    nts, ets = ["a", "b"], [("a", "r1", "b"), ("b", "r2", "a"), ("a", "r3", "a")]
+    x = {"a": torch.randn(5, 8), "b": torch.randn(4, 8)}
+    ei = {ets[0]: torch.tensor([[0, 1, 2], [0, 1, 3]]), ets[1]: torch.tensor([[0, 3], [4, 2]]),
+          ets[2]: torch.tensor([[1, 2], [0, 3]])}
+    reordered = {k: ei[k] for k in (ets[2], ets[0], ets[1])}
+    old = pyg_backend.use_segment_matmul
+    pyg_backend.use_segment_matmul = False
+    try:
+        conv = HGTConv(8, 8, (nts, ets), heads=2)
+        raw_diff = (conv(x, ei)["b"] - conv(x, reordered)["b"]).abs().max()
+        assert raw_diff > 1e-4, "upstream HGTConv became order-invariant; the workaround can be dropped"
+
+        in_dims = {nt: small_task.data[nt].x.size(1) for nt in small_task.data.node_types}
+        model = HGT(in_dims, METADATA, hidden=16, num_layers=2, heads=2, dropout=0.0).eval()
+        spec = SamplerSpec(fanout=None, default_fanout=[5, 2], batch_size=32)
+        s = small_task.splits["val"]
+        batch = next(iter(PyGBackend(small_task.data).loader("pr", s.node, s.time, spec, shuffle=False)))
+        out1 = model(batch, "pr")
+        shuffled = batch.clone()
+        for et in reversed(list(batch.edge_types)):   # rebuild storage in reverse order
+            del shuffled[et]
+        for et in reversed(list(batch.edge_types)):
+            shuffled[et].edge_index = batch[et].edge_index
+        assert list(shuffled.edge_types) != list(batch.edge_types)
+        assert torch.allclose(out1, model(shuffled, "pr"), atol=1e-6)
+    finally:
+        pyg_backend.use_segment_matmul = old
