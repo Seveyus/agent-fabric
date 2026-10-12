@@ -482,8 +482,10 @@ def build_pr_merge_task(events: pl.DataFrame, cfg: PRMergeTaskConfig) -> Tempora
 
     rng = np.random.default_rng(cfg.sample_seed)
     splits: dict[str, SeedSet] = {}
+    eligible: dict[str, dict[str, float]] = {}
     for name, (start, end) in cfg.bounds().items():
         s = seeds.filter((pl.col("ts") >= start) & (pl.col("ts") < end)).sort("pr_id")
+        eligible[name] = {"n": s.height, "pos_rate": float(s["y"].mean()) if s.height else float("nan")}
         cap = cfg.max_train_seeds if name == "train" else cfg.max_eval_seeds
         if cap is not None and s.height > cap:
             keep = np.sort(rng.choice(s.height, size=cap, replace=False))
@@ -500,6 +502,7 @@ def build_pr_merge_task(events: pl.DataFrame, cfg: PRMergeTaskConfig) -> Tempora
         "num_edges": {"/".join(k): int(data[k].edge_index.size(1)) for k in data.edge_types},
         "num_events": ev.height,
         "event_ts_range": [int(ev["ts"].min()), int(ev["ts"].max())],
+        "eligible_seeds_before_subsampling": eligible,
         "split_sizes": {k: len(v) for k, v in splits.items()},
         "split_pos_rate": {k: float(v.y.mean()) if len(v) else float("nan") for k, v in splits.items()},
     }
