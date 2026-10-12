@@ -1,0 +1,48 @@
+# SYNTHETIC EV fleet depot-charging example (core/dataset/ev_fleet.py).
+# Not real fleet or grid data. Task: at 15:00 planning time, predict which
+# planned overnight sessions will leave the vehicle short of its departure
+# energy target. Nights 0-39 train, 40-49 validation, 50-59 test.
+
+[experiment]
+name = "ev_fleet_departure_risk"
+seed = 0
+output_dir = "runs"
+
+[data]
+source = "ev_fleet"
+cache = "data/ev_fleet/task.pt"
+
+[data.ev]
+n_feeders = 6
+nights = 60
+train_nights = 40
+val_nights = 10
+history_nights = 30
+step_minutes = 15
+seed = 0
+
+[features]
+# false: drop the hand-engineered contention aggregates (depot/feeder load
+# ratios, charger queue, charger fault history) from the session features.
+use_history = false
+
+[model]
+encoder = "hgt"
+hidden = 64
+num_layers = 2
+heads = 2
+dropout = 0.1
+
+[sampler]
+batch_size = 256
+default_fanout = [20, 20]
+
+[train]
+epochs = 30
+lr = 0.002
+weight_decay = 0.0001
+patience = 5
+
+[backend]
+name = "pyg"
+device = "cpu"
