@@ -1,186 +1,276 @@
-# Delivery World Model
+# Agent Fabric
 
-> A JEPA-inspired world model for software delivery — trained on millions of public GitHub project timelines, predicts delivery failures before humans can see them.
+Agent Fabric models software delivery as a **temporal heterogeneous graph**
+(people, pull requests, repositories and the time-stamped interactions between
+them) and asks whether graph learning predicts delivery outcomes better than
+simpler models. The same pipeline is applied to a synthetic **EV-fleet
+charging** problem to check that it carries over to industrial operations.
 
----
+The repository has two parts:
 
-## What this is
+* **Graph-learning pipeline** (this README): GH Archive ingestion, a temporal
+  heterogeneous graph with leakage-safe splits, PyG and cuGraph-PyG sampling
+  backends, MLP / HeteroSAGE / HGT models, a temporal JEPA objective,
+  baselines, benchmarks, tests.
+* **Delivery-intelligence platform** (`apps/`, `core/services`, `db/`):
+  FastAPI service, GitHub/Jira/Notion connectors, knowledge graph, pre-flight
+  endpoint. Unchanged by this work; see [Platform](#platform).
 
-Most AI coding agents (Cursor, Claude Code, Copilot) are contextually blind. They see the code, the tickets, the docs — but not the **causal physics** that produced them. They don't know that the weird retry logic in `payment_service.py` exists because of a silent timeout failure in prod (March 2024), and that three attempts to "simplify" it all caused regressions.
+Status of every component, with what is measured and what is not verified:
+[docs/GRAPH_LEARNING.md §1](docs/GRAPH_LEARNING.md#1-status). Audit of the
+starting point: [docs/AUDIT.md](docs/AUDIT.md).
 
-This system builds and maintains a **temporal causal knowledge graph** of software projects, and exposes it via a pre-flight API that agents query before acting.
+## Contents
 
-**Core question it answers:** "Before you modify X — here is what will probably break, why, and how confident we are."
+- [The prediction task](#the-prediction-task)
+- [Graph schema](#graph-schema)
+- [Pipeline](#pipeline)
+- [Results](#results)
+- [Self-supervised objective](#self-supervised-objective)
+- [NVIDIA RAPIDS / cuGraph-PyG](#nvidia-rapids--cugraph-pyg)
+- [Reproduce](#reproduce)
+- [Limitations](#limitations)
+- [Next steps](#next-steps)
+- [Platform](#platform)
 
----
+## The prediction task
 
-## Architecture
+> When a pull request is opened, will it be merged within 48 hours?
 
-```
-GH Archive (public GitHub data)
-    ↓
-core/dataset/          Graph snapshots — 7-day windows of project state
-    ↓
-models/                JEPA world model
-    encoder.py         HGT (Heterogeneous Graph Transformer) → 128-dim repr
-    predictor.py       Predicts future repr from current repr + events
-    world_model.py     Full training loop with EMA target encoder
-    ↓
-training/              Training + evaluation scripts
-    train.py           python -m training.train --pairs data/pairs.pkl
-    evaluate.py        AUC, prediction MSE, representation health
-    ↓
-core/services/
-    knowledge_graph_service.py   Temporal causal graph (append-only edges)
-    knowledge_search_service.py  Hybrid search: Qdrant vectors + graph traversal
-    ↓
-apps/api/routers/
-    preflight.py       POST /preflight — the core product endpoint
-```
+Data: public GitHub events from [GH Archive](https://www.gharchive.org/),
+2025-08-25 → 2025-09-15 (all hours), restricted to the 24,475 repositories with
+at least two distinct human PR authors in the first week. GitHub trimmed the
+public event payloads in October 2025 (PR titles, authors, merge flags and
+commit lists disappeared; measured, see [GRAPH_LEARNING §3](docs/GRAPH_LEARNING.md#3-data)),
+so later data cannot support this task.
 
----
+Why a graph: whether a PR lands plausibly depends on the author's track
+record, the repository's habits and the reviewers' activity — context outside
+the PR. The experiments test that against hand-built history features rather
+than assuming it.
 
-## The JEPA training loop
+## Graph schema
 
-```
-graph_t  ──[online encoder]──→  s_x (128-dim)
-                                    │
-                                [predictor + events]
-                                    │
-                                  ŝ_y (predicted)
-
-graph_t_k ──[target encoder (EMA)]──→  s_y (128-dim, stop gradient)
-
-Loss = ||ŝ_y - s_y||²   ← prediction in latent space, not raw space
-```
-
-The target encoder is **never trained by backprop** — it is updated via EMA (τ=0.99) after each optimizer step. This prevents representational collapse, the key insight from I-JEPA (Assran et al., 2023).
-
----
-
-## Pre-flight API
-
-```bash
-curl -X POST http://localhost:8000/preflight \
-  -H "Content-Type: application/json" \
-  -d '{
-    "action": "modify",
-    "target_ref": "auth_middleware.py",
-    "project_ref": "myorg/backend"
-  }'
+```mermaid
+graph LR
+  user((user)) -- opens --> pr((pr))
+  user -- "approves / reviews / comments_on" --> pr
+  user -- "merges / closes" --> pr
+  user -- "authored_merged / authored_closed" --> pr
+  pr -- in_repo --> repo((repo))
+  pr -- "merged_into / closed_unmerged_in" --> repo
+  user -- "pushes_to / stars / forks / issue_activity / releases" --> repo
 ```
 
-Response:
-```json
-{
-  "risk_level": "high",
-  "risk_score": 0.78,
-  "consequences": [
-    {
-      "entity_ref": "payment_service.py",
-      "probability": 0.87,
-      "relation_type": "constrained_by",
-      "reason": "payment_service.py is constrained by this — changing it may violate the constraint"
-    }
-  ],
-  "decision_history": [
-    {
-      "decision": "Retry logic hardened to 3 attempts",
-      "rationale": "Silent timeout failures from payment processor (incident 2024-03)",
-      "causal_type": "triggered_by",
-      "confidence": 0.9
-    }
-  ],
-  "recommendation": "Require human review — high-probability impact on payment_service.py"
-}
+Every edge carries the time of the interaction; every relation has a reverse
+twin (32 edge types). PR nodes carry features known at open time, plus
+optional point-in-time history aggregates (author's and repository's prior
+merge record, computed strictly before the open time). User and repository
+nodes are featureless on purpose: their state changes over time and is
+reconstructed from the time-filtered neighbourhood.
+
+**Leakage control** (each with a test): temporal neighbour sampling never
+returns an edge newer than the seed PR's open time (so a PR never sees its own
+merge or reviews); node features are point-in-time; train / validation / test
+are split by time with an embargo so that every label of a split is resolved
+before the next split starts.
+
+## Pipeline
+
+```mermaid
+flowchart LR
+  A[GH Archive hours<br/>streamed, never stored raw] --> B[typed Parquet events<br/>core/dataset/gharchive_ingest.py]
+  B --> C[temporal HeteroData + seeds/labels<br/>core/dataset/temporal_graph.py]
+  C --> D{sampling backend<br/>training/backends.py}
+  D -- pyg: pyg-lib, CPU --> E[HeteroData mini-batches]
+  D -- cugraph: GPU, not verified --> E
+  E --> F[MLP / HeteroSAGE / HGT<br/>models/hetero_gnn.py]
+  F --> G[train / early stop / test<br/>training/node_task.py]
+  C --> H[LogReg / LightGBM<br/>training/tabular_baselines.py]
+  G --> I[multi-seed suites + paired tests<br/>training/suite.py]
+  H --> I
 ```
 
----
+## Results
 
-## Getting started
+All numbers come from [`experiments/results/`](experiments/results/), CPU only
+(Intel i5-11300H, 4 cores), mean ± std over 3 seeds, test split scored once
+with the checkpoint chosen on validation.
 
-```bash
-# Install
-pip install -e .
-# For GPU training:
-pip install torch-scatter torch-sparse -f https://data.pyg.org/whl/torch-2.3.0+cu121.html
-pip install -e ".[train]"
+### Real data — GH Archive, 48 h PR merge
 
-# Run the API
-uvicorn apps.api.main:app --reload
+1.39 M nodes (816 k PRs, 547 k users, 24 k repos), 12.4 M directed edges;
+40 k / 15 k / 15 k train / validation / test PRs, 32 % positive.
+[Full table](experiments/results/gh_pr_merge__main.md).
 
-# Collect data (start small — 1 week of GH Archive)
-python -c "
-from core.dataset.gh_archive import GHArchiveDownloader
-dl = GHArchiveDownloader('data/raw')
-dl.download_range('2024-01-01', '2024-01-07', hours=[9,12,15,18])
-"
+| Model | Test ROC-AUC, intrinsic features | + point-in-time history | Train s | Test PRs/s |
+|---|---|---|---|---|
+| LightGBM | 0.681 ± 0.000 | 0.722 ± 0.001 | 0.4 | ~1.1 M |
+| MLP (same loop as the GNNs) | 0.678 ± 0.001 | 0.724 ± 0.001 | 5 | ~83 k |
+| HeteroSAGE | **0.721 ± 0.002** | **0.730 ± 0.001** | 87 | ~5.6 k |
+| HGT | 0.715 ± 0.002 | 0.728 ± 0.001 | 166 | ~3.0 k |
 
-# Build training pairs
-python -c "
-from core.dataset.gh_archive import GHArchiveDownloader, EventNormalizer
-from core.dataset.graph_builder import RepoTimeline
-from training.dataset import build_pairs_from_timelines
-import pickle, collections
+* The temporal graph recovers the history signal on its own: HeteroSAGE vs.
+  MLP on intrinsic features, **+0.043 AUC** (paired 95 % CI [0.037, 0.049]) —
+  the same lift hand-built history aggregates give LightGBM (+0.042).
+* On top of those aggregates the graph adds a small, significant
+  **+0.0075** (CI [0.004, 0.011]) over LightGBM.
+* HGT does not beat the cheaper HeteroSAGE and trains ~1.9× slower.
+* On CPU the GNN costs ~200× LightGBM's training time for that gain; a GBDT on
+  point-in-time aggregates is the sensible default for this task today.
 
-dl = GHArchiveDownloader('data/raw')
-normalizer = EventNormalizer()
-timelines = collections.defaultdict(lambda: RepoTimeline(''))
+### Synthetic EV fleet — will a vehicle miss its departure energy target?
 
-for raw_ev in dl.iter_all_events():
-    ev = normalizer.normalize(raw_ev)
-    if ev:
-        if timelines[ev['repo']].repo == '':
-            from core.dataset.graph_builder import RepoTimeline as RT
-            timelines[ev['repo']] = RT(ev['repo'])
-        timelines[ev['repo']].add_event(ev)
+Synthetic depot simulator with shared depot/feeder power caps and charger
+queues (not real fleet data). [Table](experiments/results/ev_fleet__main.md),
+[write-up](docs/INDUSTRIAL_GRAPH_APPLICATIONS.md).
 
-build_pairs_from_timelines(list(timelines.values()), 'data/pairs_14d.pkl')
-"
-
-# Train (CPU, ~4h for 50K pairs)
-python -m training.train --pairs data/pairs_14d.pkl --epochs 50 --device cpu
-
-# Or GPU (your 20GB VM)
-python -m training.train --pairs data/pairs_14d.pkl --epochs 100 --device cuda
-
-# Evaluate
-python -m training.evaluate --checkpoint checkpoints/best.pt --pairs data/pairs_14d.pkl
-```
-
----
-
-## Validation signal
-
-Before building more, run this first:
-
-```python
-# Does the signal exist in public data?
-# Target: AUC > 0.65 on regression prediction
-python -m training.evaluate --checkpoint checkpoints/best.pt --pairs data/pairs_14d.pkl
-# If AUC > 0.65 → signal is real → continue
-# If AUC ≈ 0.50 → no signal → revisit features
-```
-
----
-
-## Papers
-
-- **I-JEPA** — Assran et al., 2023 — https://arxiv.org/abs/2301.08243
-- **A Path Towards Autonomous Machine Intelligence** — LeCun, 2022 — https://openreview.net/pdf?id=BZ5a1r-kVsf
-- **Heterogeneous Graph Transformer (HGT)** — Hu et al., 2020 — https://arxiv.org/abs/2003.01332
-- **Know-Evolve: Deep Temporal Reasoning for Dynamic Knowledge Graphs** — Trivedi et al., 2017 — https://arxiv.org/abs/1705.05742
-
----
-
-## Compute requirements
-
-| Task | Hardware | Time |
+| Model | Test ROC-AUC, per-session features | + engineered contention aggregates |
 |---|---|---|
-| Data collection (50K repos) | CPU + internet | 2–3 weeks |
-| Feature engineering | CPU | Hours |
-| Training (50K pairs, 100 epochs) | 4 GB VRAM | ~8h |
-| Training (500K pairs, 100 epochs) | 20 GB VRAM | ~24h |
-| Inference (pre-flight API) | CPU | <10ms |
+| LightGBM | 0.835 ± 0.014 | **0.931 ± 0.003** |
+| MLP | 0.791 ± 0.008 | 0.917 ± 0.004 |
+| HeteroSAGE | **0.869 ± 0.008** | 0.926 ± 0.003 |
+| HGT | 0.863 ± 0.016 | 0.919 ± 0.005 |
 
-No massive compute required. The model is ~700K parameters.
+Same lesson as on GitHub data: the GNN learns the shared-resource contention
+from structure (+0.078 over the MLP, CI [0.049, 0.113]), but an expert's five
+aggregates plus LightGBM do as well (difference −0.004, CI [−0.021, +0.012]).
+
+### Synthetic PR graph — pipeline sanity check
+
+With a planted mechanism visible only through history, non-graph models are
+at chance (0.51–0.53) and HGT / HeteroSAGE reach 0.70 / 0.69.
+[Table](experiments/results/synthetic_pr_merge__main.md).
+
+### Temporal JEPA (synthetic PR graph)
+
+The self-supervised encoder beats a random encoder under a linear probe
+(+0.107 AUC) and helps with 10 % of the labels (+0.046 vs. training from
+scratch), but fine-tuning it with all labels is 0.07 *worse* than training
+from scratch. [Table](experiments/results/synthetic_pr_merge__jepa.md).
+
+## Self-supervised objective
+
+A temporal node-level JEPA ([models/temporal_jepa.py](models/temporal_jepa.py)):
+from a PR's neighbourhood at open time (online encoder), predict the EMA
+target encoder's embedding of that PR's *future* interactions in (t, t+Δ]
+(its own features masked, its past edges removed), with the predictor
+conditioned on Δ ∈ {12, 24, 48} h. Context and target carry disjoint
+information, so an encoder cannot minimise the loss by ignoring change — the
+failure mode of a temporal BYOL. Details, what was verified (stop-gradient,
+EMA, alignment, embargo), where it helps and where it does not:
+[GRAPH_LEARNING §7](docs/GRAPH_LEARNING.md#7-self-supervised-objective-temporal-node-jepa).
+
+## NVIDIA RAPIDS / cuGraph-PyG
+
+`training/backends.py` has two interchangeable samplers behind one interface:
+
+* `pyg` — `torch_geometric.loader.NeighborLoader` with edge-level temporal
+  sampling in pyg-lib (CPU). **Measured.**
+* `cugraph` — `cugraph_pyg.data.GraphStore` + WholeGraph `FeatureStore`
+  (edge timestamps stored per edge type) and `cugraph_pyg.loader.NeighborLoader`
+  (26.10 API) with GPU temporal sampling. **Not verified**: written against the
+  API docs and the upstream examples, never executed — the development
+  machine's GTX 1650 has no working driver for the running kernel.
+
+What would run on the GPU, what stays in PyTorch, the different temporal rules
+of the two samplers, memory considerations and the benchmark to run:
+[GRAPH_LEARNING §8 and §11](docs/GRAPH_LEARNING.md#8-sampling-backends-pyg-and-cugraph-pyg).
+
+## Reproduce
+
+```bash
+python3.12 -m venv .venv && . .venv/bin/activate
+pip install -r requirements/graph-cpu.txt        # torch 2.8 CPU, PyG 2.7, pyg-lib 0.5
+pytest tests/ml -q                               # 57 tests, ~1-2 min; the GPU test is skipped without one
+
+# fast, self-contained (synthetic data, minutes)
+python -m training.node_task --config configs/synthetic_pr_merge.toml
+python -m training.node_task --config configs/ev_fleet.toml --set model.encoder='"sage"'
+
+# everything in experiments/results/: streams ~60 GB from GH Archive (~75 min at
+# 10 MB/s), then several hours of CPU for the suites; steps can be run one by one
+bash experiments/reproduce.sh            # or: bash experiments/reproduce.sh gh bench
+```
+
+Any config value can be overridden: `--set section.key=value` (TOML syntax).
+Runs write `config.json`, `metrics.jsonl`, `best.pt`, `results.json` and test
+predictions under `runs/`. With the default `backend.num_workers = 1`, two runs
+with the same seed give identical metrics (tested).
+
+GPU path (requires an NVIDIA GPU with compute capability ≥ 7.0 and a CUDA 12
+driver; not verified here):
+
+```bash
+pip install -r requirements/graph-cugraph-cu12.txt
+pytest tests/ml -m cugraph
+python -m benchmarks.sampling_throughput --backend cugraph --device cuda --scales 2000 20000 60000
+```
+
+## Limitations
+
+* **No GPU numbers.** All measurements are CPU-only; the cuGraph-PyG backend
+  is implemented but has never been executed.
+* **One window.** Three weeks of September 2025, one temporal test window,
+  24,475 pre-selected repositories, subsampled seeds; stability over time is
+  not measured.
+* **Small graph gain.** Beyond engineered aggregates the GNN adds +0.005 to
+  +0.0075 AUC at a large compute cost; HGT is not better than HeteroSAGE.
+* **JEPA helps only with few labels.** The self-supervised encoder beats a
+  random encoder under a linear probe and helps with 10 % of the labels, but
+  fine-tuning it with all labels is worse than training from scratch
+  (negative transfer; fine-tuning schedules were not tuned).
+* **No temporal encoding beyond sampling** (PyG's HGTConv has no RTE), no
+  calibration, no per-prediction explanations.
+* **EV fleet is synthetic.** It shows the pipeline transfers, not that it
+  works on a real fleet.
+
+Full list: [GRAPH_LEARNING §12](docs/GRAPH_LEARNING.md#12-limitations-and-next-steps).
+
+## Next steps
+
+* Run the cuGraph-PyG backend and benchmark on a supported GPU; compare
+  quality (not batches) with the PyG sampler given the different temporal rule.
+* Relative temporal encoding (HGT's RTE) or time-aware message functions, so
+  recency matters beyond the sampling cut-off.
+* Longer collection (several months before October 2025) and multiple test
+  windows, to measure stability over time.
+* Calibrated probabilities and per-prediction explanations before wiring a
+  model into the pre-flight API.
+* JEPA: target normalisation / variance terms and longer schedules; re-test
+  the low-label regime with more seeds.
+
+## Platform
+
+The FastAPI service, worker and connectors predate this work and were not
+modified. Run with `uvicorn apps.api.main:app --reload` (full dependencies:
+`pip install -e .`; database and Qdrant via `make dev-up`). The pre-flight
+endpoint (`POST /preflight`) traverses the stored causal graph and scores
+consequences with **hand-set heuristics** (stored edge confidence × a fixed
+multiplier per relation type); it does not use a learned model.
+
+Example (heuristic scores, see above):
+
+```bash
+curl -X POST http://localhost:8000/preflight -H "Content-Type: application/json" \
+  -d '{"action": "modify", "target_ref": "auth_middleware.py", "project_ref": "myorg/backend"}'
+```
+
+**Snapshot-level JEPA (original prototype).** `models/world_model.py` encodes
+weekly per-repository snapshot graphs with HGT and predicts the latent of the
+window k days later. It was repaired (it could not import or run, and its
+predictor saw the target window's event summary) and is tested, but it has not
+been trained on real data:
+
+```bash
+python -m training.train --pairs data/pairs_14d.pkl --epochs 50 --device cpu   # pairs: training.dataset.build_pairs_from_timelines
+python -m training.evaluate --checkpoint checkpoints/last.pt --pairs data/pairs_14d.pkl   # scores the temporal hold-out
+```
+
+## References
+
+- Hu et al., *Heterogeneous Graph Transformer*, 2020 — https://arxiv.org/abs/2003.01332
+- Assran et al., *Self-Supervised Learning from Images with a Joint-Embedding Predictive Architecture*, 2023 — https://arxiv.org/abs/2301.08243
+- Grill et al., *Bootstrap Your Own Latent*, 2020 — https://arxiv.org/abs/2006.07733
+- Thakoor et al., *Large-Scale Representation Learning on Graphs via Bootstrapping (BGRL)*, 2021 — https://arxiv.org/abs/2102.06514
+- PyG temporal sampling and cuGraph-PyG documentation — https://pytorch-geometric.readthedocs.io, https://docs.nvidia.com/cugraph/

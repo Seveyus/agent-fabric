@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PY=${PY:-python}
-steps=${*:-"ingest synthetic synthetic_jepa ev gh jepa bench"}
+steps=${*:-"ingest synthetic synthetic_jepa ev gh gh_all_seeds jepa bench"}
 
 for step in $steps; do
   case "$step" in
@@ -23,6 +23,9 @@ for step in $steps; do
       $PY -m training.suite --suite main --config configs/ev_fleet.toml --seeds 0 1 2 ;;
     gh)       # 4. real GH Archive graph
       $PY -m training.suite --suite main --config configs/gh_pr_merge.toml --seeds 0 1 2 ;;
+    gh_all_seeds)  # robustness: no seed subsampling
+      $PY -m training.suite --suite main --config configs/gh_pr_merge_all_seeds.toml --seeds 0 1 2 \
+          --only "LightGBM (+history)" "MLP (+history)" "HeteroSAGE (+history)" ;;
     jepa)
       $PY -m training.suite --suite jepa --config configs/gh_pr_merge.toml --seeds 0 1 2 ;;
     bench)    # 5. throughput (run alone on the machine)
