@@ -114,7 +114,8 @@ with the checkpoint chosen on validation.
   MLP on intrinsic features, **+0.043 AUC** (paired 95 % CI [0.037, 0.049]) —
   the same lift hand-built history aggregates give LightGBM (+0.042).
 * On top of those aggregates the graph adds a small, significant
-  **+0.0075** (CI [0.004, 0.011]) over LightGBM.
+  **+0.0075** (CI [0.004, 0.011]) over LightGBM; without any seed subsampling
+  (91 k / 29 k / 25 k PRs) the gap is +0.0085 (CI [0.006, 0.011]).
 * HGT does not beat the cheaper HeteroSAGE and trains ~1.9× slower.
 * On CPU the GNN costs ~200× LightGBM's training time for that gain; a GBDT on
   point-in-time aggregates is the sensible default for this task today.

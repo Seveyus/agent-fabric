@@ -372,6 +372,13 @@ Reading:
 5. Validation AUCs are ~0.05 lower than test AUCs for every model; the
    validation PRs were opened on Monday–Tuesday, the test PRs on
    Friday–Saturday. Model ranking is the same on both.
+6. **Robustness to seed subsampling.** Re-run without any subsampling (all
+   91,329 / 28,631 / 25,306 eligible PRs, 3 seeds,
+   [`gh_pr_merge_all_seeds__main.md`](../experiments/results/gh_pr_merge_all_seeds__main.md)):
+   LightGBM + history 0.725, MLP + history 0.726, HeteroSAGE + history 0.733;
+   paired HeteroSAGE − LightGBM = +0.0085 [+0.0062, +0.0108]. Same conclusion,
+   tighter interval. (Its training times were measured while another suite
+   was running and are not comparable.)
 
 Sampling vs compute on CPU (from the same runs, HeteroSAGE + history): an
 epoch over 40,000 seeds spends 1.2 s waiting for the sampler and 10.2 s in
