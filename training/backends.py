@@ -51,6 +51,31 @@ log = logging.getLogger(__name__)
 EdgeType = tuple[str, str, str]
 
 
+def configure_pyg_kernels(segment_matmul: str = "on") -> bool | None:
+    """
+    Pin PyG's HeteroLinear dispatch (used by HGTConv's relation-specific K/V).
+
+    With ``use_segment_matmul = None`` PyG times pyg-lib ``segment_matmul``
+    against a per-type Python loop on the first batch of each size magnitude and
+    caches the winner per module. That one-shot timing is noisy under load; on
+    the GH Archive graph it picked the loop in some runs: 9.3 s vs 0.76 s per HGT
+    train step (batch 512, fan-out [10, 5], measured). "on" uses segment_matmul
+    whenever pyg-lib provides it, "off" forces the loop, "auto" keeps PyG's timing.
+    """
+    import torch_geometric.backend as pyg_backend
+    from torch_geometric.typing import WITH_SEGMM
+
+    if segment_matmul == "auto":
+        pyg_backend.use_segment_matmul = None
+    elif segment_matmul == "on":
+        pyg_backend.use_segment_matmul = True if WITH_SEGMM else False
+    elif segment_matmul == "off":
+        pyg_backend.use_segment_matmul = False
+    else:
+        raise ValueError("segment_matmul must be 'on', 'off' or 'auto'")
+    return pyg_backend.use_segment_matmul
+
+
 @dataclass(frozen=True)
 class SamplerSpec:
     """Fan-out per edge type and hop; edge types not listed get ``default_fanout``."""
@@ -141,8 +166,11 @@ class PyGBackend:
             pyg_lib_version = pyg_lib.__version__
         except ImportError:
             pyg_lib_version = None
+        import torch_geometric.backend as pyg_backend
+
         return {
             "backend": self.name,
+            "segment_matmul": pyg_backend.use_segment_matmul,
             "sampling": "pyg-lib on CPU" if pyg_lib_version else "torch-sparse on CPU",
             "feature_gather": "PyTorch, host memory",
             "model_device": str(self.device),

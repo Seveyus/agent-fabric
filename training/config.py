@@ -99,6 +99,7 @@ class BackendSection:
     # metrics across runs). 0 samples in the main process with all threads.
     num_workers: int = 1
     torch_threads: int = 0               # 0 = PyTorch default
+    segment_matmul: str = "on"           # PyG HeteroLinear kernel: on | off | auto (see training/backends.py)
 
 
 @dataclass
@@ -179,6 +180,8 @@ class ExperimentConfig:
             raise ConfigError("need 0 < jepa.ema_tau <= jepa.ema_tau_end <= 1")
         if self.backend.name not in ("pyg", "cugraph"):
             raise ConfigError("backend.name must be 'pyg' or 'cugraph'")
+        if self.backend.segment_matmul not in ("on", "off", "auto"):
+            raise ConfigError("backend.segment_matmul must be 'on', 'off' or 'auto'")
         if self.backend.name == "cugraph" and not self.backend.device.startswith("cuda"):
             raise ConfigError("the cugraph backend requires backend.device = 'cuda'")
         if self.pretrain.freeze_encoder and not self.pretrain.checkpoint:

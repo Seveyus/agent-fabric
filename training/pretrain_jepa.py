@@ -33,7 +33,7 @@ import torch
 from core.dataset.temporal_graph import TemporalTask
 from models.hetero_gnn import build_encoder
 from models.temporal_jepa import TemporalNodeJEPA, future_only_view
-from training.backends import PyGBackend
+from training.backends import PyGBackend, configure_pyg_kernels
 from training.config import ExperimentConfig, load_config
 from training.node_task import make_spec, prepare_task, seed_everything, select_features, standardise
 
@@ -58,6 +58,7 @@ def pretrain(cfg: ExperimentConfig, task: TemporalTask | None = None) -> dict:
     seed_everything(cfg.experiment.seed)
     if cfg.backend.torch_threads:
         torch.set_num_threads(cfg.backend.torch_threads)
+    configure_pyg_kernels(cfg.backend.segment_matmul)
 
     task = task if task is not None else prepare_task(cfg)
     if task.seed_type != SEED_TYPE or "open_ts" not in task.data["pr"]:

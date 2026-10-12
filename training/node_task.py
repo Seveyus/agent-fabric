@@ -35,7 +35,7 @@ import torch.nn.functional as F
 
 from core.dataset.temporal_graph import TemporalTask, build_pr_merge_task, load_events
 from models.hetero_gnn import NodeClassifier, build_encoder
-from training.backends import SamplerSpec, make_backend
+from training.backends import SamplerSpec, configure_pyg_kernels, make_backend
 from training.config import ExperimentConfig, load_config
 from training.metrics import best_f1_threshold, binary_metrics, bootstrap_auc_ci
 
@@ -238,6 +238,7 @@ def run_experiment(cfg: ExperimentConfig, task: TemporalTask | None = None) -> d
     seed_everything(cfg.experiment.seed)
     if cfg.backend.torch_threads:
         torch.set_num_threads(cfg.backend.torch_threads)
+    configure_pyg_kernels(cfg.backend.segment_matmul)
     run_dir = Path(cfg.experiment.output_dir) / cfg.experiment.name / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "config.json").write_text(json.dumps(cfg.to_dict(), indent=2))

@@ -5,9 +5,11 @@ Run a named comparison suite over several seeds and aggregate the results.
     python -m training.suite --suite jepa --config configs/synthetic_pr_merge.toml --seeds 0 1 2
 
 Writes experiments/results/<config-name>__<suite>.json (every run) and .md
-(mean ± std table). All variants share the cached task (same graph, same seeds,
-same splits); the seed changes model initialisation, mini-batch order and
-neighbour sampling.
+(mean ± std table + paired comparisons). All variants share the cached task
+(same graph, same seeds, same splits); the seed changes model initialisation,
+mini-batch order and neighbour sampling. Each (variant, seed) runs in its own
+process and is saved under runs/suite_runs/, so an interrupted suite resumes
+where it stopped (--force re-runs).
 """
 
 from __future__ import annotations
@@ -15,6 +17,8 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -98,7 +102,7 @@ def _comparison_markdown(comps: list[dict]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _run_one(config_path: str, kind: str, overrides: list[str], seed: int, jepa_ckpt: dict) -> dict:
+def _run_one(config_path: str, kind: str, overrides: list[str], seed: int) -> dict:
     from training.node_task import prepare_task, run_experiment, select_features, standardise
 
     overrides = [*overrides, f"experiment.seed={seed}"]
@@ -115,12 +119,11 @@ def _run_one(config_path: str, kind: str, overrides: list[str], seed: int, jepa_
         from training.pretrain_jepa import pretrain
 
         base = load_config(config_path, overrides)
-        key = (base.model.encoder, base.features.use_history, seed)
-        if key not in jepa_ckpt:
-            out = Path(base.experiment.output_dir) / base.experiment.name / f"jepa_{base.model.encoder}_seed{seed}.pt"
-            res = pretrain(load_config(config_path, [*overrides, f'jepa.output="{out}"']))
-            jepa_ckpt[key] = (str(out), res)
-        ckpt, pre = jepa_ckpt[key]
+        hist = "hist" if base.features.use_history else "nohist"
+        ckpt = Path(base.experiment.output_dir) / base.experiment.name / f"jepa_{base.model.encoder}_{hist}_seed{seed}.pt"
+        if not ckpt.exists():  # one pretraining per (encoder, features, seed), shared by probe / fine-tune runs
+            pretrain(load_config(config_path, [*overrides, f'jepa.output="{ckpt}"']))
+        pre = json.loads(ckpt.with_suffix(".json").read_text())
         extra = [f'pretrain.checkpoint="{ckpt}"']
         if kind == "jepa:probe":
             extra.append("pretrain.freeze_encoder=true")
@@ -129,6 +132,28 @@ def _run_one(config_path: str, kind: str, overrides: list[str], seed: int, jepa_
                                       "final": pre["history"][-1]}
         return result
     return run_experiment(load_config(config_path, overrides))
+
+
+def _run_isolated(config_path: str, kind: str, overrides: list[str], seed: int, out_json: Path,
+                  out_npz: Path) -> dict:
+    """Run one experiment in a fresh interpreter (``python -m training.suite --child-run``):
+    memory is returned between runs (each run loads the task and forks sampling
+    workers) and no library state (e.g. PyG's HeteroLinear timing cache) leaks
+    from one run to the next."""
+    spec = json.dumps({"config": config_path, "kind": kind, "overrides": overrides, "seed": seed,
+                       "out_json": str(out_json), "out_npz": str(out_npz)})
+    subprocess.run([sys.executable, "-m", "training.suite", "--child-run", spec], check=True)
+    return json.loads(out_json.read_text())
+
+
+def _child_run(spec_json: str) -> None:
+    spec = json.loads(spec_json)
+    r = _run_one(spec["config"], spec["kind"], spec["overrides"], spec["seed"])
+    y, prob = r.pop("_test_pred")
+    np.savez_compressed(spec["out_npz"], y=y, p=prob)
+    tmp = Path(spec["out_json"]).with_suffix(".tmp")
+    tmp.write_text(json.dumps(r, indent=2, default=float))
+    tmp.rename(spec["out_json"])
 
 
 def _summary(runs: list[dict]) -> dict:
@@ -173,21 +198,40 @@ def _slug(label: str) -> str:
 
 
 def run_suite(suite: str, config_path: str, seeds: list[int], out_dir: str = "experiments/results",
-              only: list[str] | None = None, pred_root: str = "runs/predictions") -> dict:
+              only: list[str] | None = None, pred_root: str = "runs/predictions",
+              run_root: str = "runs/suite_runs", force: bool = False) -> dict:
+    """Run missing (variant, seed) pairs, each in its own process, then (re)build
+    the report from every saved run of this suite."""
+    stem = f"{Path(config_path).stem}__{suite}"
+    pred_dir, run_dir = Path(pred_root) / stem, Path(run_root) / stem
+    pred_dir.mkdir(parents=True, exist_ok=True)
+    run_dir.mkdir(parents=True, exist_ok=True)
     variants = [v for v in SUITES[suite] if not only or v[0] in only]
-    jepa_ckpt: dict = {}
-    runs: dict[str, list[dict]] = {}
     t0 = time.perf_counter()
     for label, kind, overrides in variants:
         for seed in seeds:
+            name = f"{_slug(label)}__seed{seed}"
+            if (run_dir / f"{name}.json").exists() and (pred_dir / f"{name}.npz").exists() and not force:
+                log.info("=== %s | seed %d (done, skipped)", label, seed)
+                continue
             log.info("=== %s | seed %d", label, seed)
-            r = _run_one(config_path, kind, overrides, seed, jepa_ckpt)
-            y, prob = r.pop("_test_pred")
-            pred_dir = Path(pred_root) / f"{Path(config_path).stem}__{suite}"
-            pred_dir.mkdir(parents=True, exist_ok=True)
-            np.savez_compressed(pred_dir / f"{_slug(label)}__seed{seed}.npz", y=y, p=prob)
-            runs.setdefault(label, []).append(r)
+            _run_isolated(config_path, kind, overrides, seed, run_dir / f"{name}.json", pred_dir / f"{name}.npz")
+    return build_report(suite, config_path, seeds, out_dir, pred_root, run_root,
+                        wall_seconds=time.perf_counter() - t0)
 
+
+def build_report(suite: str, config_path: str, seeds: list[int], out_dir: str = "experiments/results",
+                 pred_root: str = "runs/predictions", run_root: str = "runs/suite_runs",
+                 wall_seconds: float | None = None) -> dict:
+    stem = f"{Path(config_path).stem}__{suite}"
+    runs: dict[str, list[dict]] = {}
+    for label, _, _ in SUITES[suite]:
+        for seed in seeds:
+            f = Path(run_root) / stem / f"{_slug(label)}__seed{seed}.json"
+            if f.exists():
+                runs.setdefault(label, []).append(json.loads(f.read_text()))
+    if not runs:
+        raise FileNotFoundError(f"no saved runs for {stem}")
     gnn_run = next((r[0] for r in runs.values() if "environment" in r[0]), None)
     env = gnn_run["environment"] if gnn_run else {}
     task_meta = gnn_run["task"] if gnn_run else {}
@@ -198,48 +242,40 @@ def run_suite(suite: str, config_path: str, seeds: list[int], out_dir: str = "ex
         "split_pos_rate": {k: round(v, 3) for k, v in (task_meta.get("split_pos_rate") or {}).items()},
         "environment": {k: env.get(k) for k in ("backend", "torch", "torch_geometric", "pyg_lib", "cpu",
                                                 "cpu_threads", "git_commit", "git_dirty")},
-        "wall_seconds": time.perf_counter() - t0,
+        "isolation": "one process per run",
+        "wall_seconds_last_invocation": wall_seconds,
     }
     summary = {label: _summary(rs) for label, rs in runs.items()}
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    stem = f"{Path(config_path).stem}__{suite}"
     comps = _comparisons(suite, Path(pred_root) / stem, set(runs))
     (out / f"{stem}.json").write_text(json.dumps(
         {"meta": meta, "summary": summary, "comparisons": comps, "runs": runs}, indent=2, default=float))
     (out / f"{stem}.md").write_text(_markdown(f"{stem}", meta, list(summary.items())) + _comparison_markdown(comps))
     log.info("wrote %s", out / f"{stem}.md")
-    return {"meta": meta, "summary": summary}
+    return {"meta": meta, "summary": summary, "comparisons": comps}
 
 
 def main(argv: list[str] | None = None) -> None:
+    if argv is None and len(sys.argv) > 2 and sys.argv[1] == "--child-run":   # internal: one isolated run
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+        _child_run(sys.argv[2])
+        return
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--suite", required=True, choices=sorted(SUITES))
     p.add_argument("--config", required=True)
     p.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
     p.add_argument("--out", default="experiments/results")
     p.add_argument("--only", nargs="*", default=None, help="subset of variant labels")
-    p.add_argument("--compare-only", action="store_true",
-                   help="recompute paired comparisons from saved predictions and update the report")
+    p.add_argument("--report-only", action="store_true",
+                   help="rebuild the report (tables + paired comparisons) from saved runs")
+    p.add_argument("--force", action="store_true", help="re-run (variant, seed) pairs that already have results")
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-    if args.compare_only:
-        update_comparisons(args.suite, args.config, args.out)
+    if args.report_only:
+        build_report(args.suite, args.config, args.seeds, args.out)
         return
-    run_suite(args.suite, args.config, args.seeds, args.out, args.only)
-
-
-def update_comparisons(suite: str, config_path: str, out_dir: str = "experiments/results",
-                       pred_root: str = "runs/predictions") -> list[dict]:
-    stem = f"{Path(config_path).stem}__{suite}"
-    report = json.loads((Path(out_dir) / f"{stem}.json").read_text())
-    comps = _comparisons(suite, Path(pred_root) / stem, set(report["summary"]))
-    report["comparisons"] = comps
-    (Path(out_dir) / f"{stem}.json").write_text(json.dumps(report, indent=2, default=float))
-    md_path = Path(out_dir) / f"{stem}.md"
-    md = md_path.read_text().split("\n## Paired comparisons")[0].rstrip("\n") + "\n"
-    md_path.write_text(md + _comparison_markdown(comps))
-    return comps
+    run_suite(args.suite, args.config, args.seeds, args.out, args.only, force=args.force)
 
 
 if __name__ == "__main__":

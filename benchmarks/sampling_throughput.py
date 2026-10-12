@@ -34,7 +34,7 @@ import torch.nn.functional as F
 
 from core.dataset.temporal_graph import METADATA, PRMergeTaskConfig, TemporalTask, build_pr_merge_task
 from models.hetero_gnn import NodeClassifier, build_encoder
-from training.backends import SamplerSpec, make_backend
+from training.backends import SamplerSpec, configure_pyg_kernels, make_backend
 
 log = logging.getLogger(__name__)
 
@@ -141,6 +141,7 @@ def main(argv: list[str] | None = None) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     if args.threads:
         torch.set_num_threads(args.threads)
+    configure_pyg_kernels("on")
     device = torch.device(args.device or ("cuda" if args.backend == "cugraph" else "cpu"))
 
     graphs: list[tuple[str, TemporalTask, float]] = []
