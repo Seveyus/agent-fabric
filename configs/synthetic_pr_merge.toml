@@ -1,0 +1,52 @@
+# SYNTHETIC benchmark (core/dataset/synthetic_events.py) — not GitHub data.
+# Latent author skill / repo strictness drive merges and are only observable
+# through history, so with features.use_history=false the non-graph MLP should
+# be near chance while temporal GNNs should recover the signal.
+
+[experiment]
+name = "synthetic_pr_merge"
+seed = 0
+output_dir = "runs"
+
+[data]
+source = "synthetic"
+cache = "data/synthetic/task_pr_merge.pt"
+
+[data.synthetic]
+n_users = 2000
+n_repos = 200
+days = 21
+seed = 0
+
+[task]
+train_start = "2025-09-05"
+train_end = "2025-09-11"
+val_start = "2025-09-13"
+val_end = "2025-09-15"
+test_start = "2025-09-17"
+test_end = "2025-09-20"
+horizon_hours = 48
+
+[features]
+use_history = false
+
+[model]
+encoder = "hgt"
+hidden = 64
+num_layers = 2
+heads = 2
+dropout = 0.1
+
+[sampler]
+batch_size = 256
+default_fanout = [10, 5]
+
+[train]
+epochs = 15
+lr = 0.002
+weight_decay = 0.0001
+patience = 4
+
+[backend]
+name = "pyg"
+device = "cpu"
