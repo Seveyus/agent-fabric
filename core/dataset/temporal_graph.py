@@ -184,14 +184,31 @@ class TemporalTask:
     meta: dict = field(default_factory=dict)
 
     @property
+    def seed_type(self) -> str:
+        return self.meta.get("seed_type", "pr")
+
+    @property
+    def metadata(self) -> tuple[list[str], list[tuple[str, str, str]]]:
+        """Canonical (node_types, edge_types) order used to build models (see HGT note)."""
+        m = self.meta.get("metadata")
+        if m is None:
+            return METADATA
+        return list(m[0]), [tuple(e) for e in m[1]]
+
+    @property
+    def history_features(self) -> list[str]:
+        """Engineered relational / point-in-time aggregates (droppable with use_history=false)."""
+        return list(self.meta.get("history_features", HISTORY_FEATURES))
+
+    @property
     def history_feature_idx(self) -> list[int]:
-        names = self.feature_names["pr"]
-        return [names.index(f) for f in HISTORY_FEATURES if f in names]
+        names = self.feature_names[self.seed_type]
+        return [names.index(f) for f in self.history_features if f in names]
 
     def tabular(self, split: str, with_history: bool = True) -> tuple[np.ndarray, np.ndarray]:
-        """Seed PR features as a plain matrix, for non-graph baselines."""
+        """Seed node features as a plain matrix, for non-graph baselines."""
         s = self.splits[split]
-        x = self.data["pr"].x[s.node]
+        x = self.data[self.seed_type].x[s.node]
         if not with_history:
             keep = [i for i in range(x.size(1)) if i not in set(self.history_feature_idx)]
             x = x[:, keep]

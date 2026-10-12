@@ -35,11 +35,25 @@ class SyntheticSection:
 
 
 @dataclass
+class EVSection:
+    """core/dataset/ev_fleet.EVFleetConfig (synthetic EV depot simulator)."""
+
+    n_feeders: int = 6
+    nights: int = 60
+    train_nights: int = 40
+    val_nights: int = 10
+    history_nights: int = 30
+    step_minutes: int = 15
+    seed: int = 0
+
+
+@dataclass
 class DataSection:
-    source: str = "synthetic"            # "synthetic" | "gharchive"
+    source: str = "synthetic"            # "synthetic" | "gharchive" | "ev_fleet"
     events: list[str] = field(default_factory=list)
     cache: str = ""                      # path of a cached TemporalTask (.pt); built if missing
     synthetic: SyntheticSection = field(default_factory=SyntheticSection)
+    ev: EVSection = field(default_factory=EVSection)
 
 
 @dataclass
@@ -109,7 +123,7 @@ class JepaSection:
 class ExperimentConfig:
     experiment: ExperimentSection
     data: DataSection
-    task: PRMergeTaskConfig
+    task: PRMergeTaskConfig | None = None     # required for the PR-merge sources
     features: FeatureSection = field(default_factory=FeatureSection)
     model: ModelSection = field(default_factory=ModelSection)
     sampler: SamplerSection = field(default_factory=SamplerSection)
@@ -122,8 +136,13 @@ class ExperimentConfig:
         return asdict(self)
 
     def validate(self) -> None:
-        if self.data.source not in ("synthetic", "gharchive"):
-            raise ConfigError("data.source must be 'synthetic' or 'gharchive'")
+        if self.data.source not in ("synthetic", "gharchive", "ev_fleet"):
+            raise ConfigError("data.source must be 'synthetic', 'gharchive' or 'ev_fleet'")
+        if self.data.source != "ev_fleet" and self.task is None:
+            raise ConfigError("a [task] section is required for the PR-merge data sources")
+        ev = self.data.ev
+        if ev.train_nights + ev.val_nights >= ev.nights:
+            raise ConfigError("data.ev: train_nights + val_nights must leave test nights")
         if self.data.source == "gharchive" and not self.data.events and not self.data.cache:
             raise ConfigError("data.events (or an existing data.cache) is required for gharchive")
         if self.model.encoder not in ("mlp", "sage", "hgt"):
@@ -150,7 +169,7 @@ class ExperimentConfig:
         j = self.jepa
         if not j.delta_hours or min(j.delta_hours) <= 0:
             raise ConfigError("jepa.delta_hours must be a non-empty list of positive values")
-        if max(j.delta_hours) > self.task.horizon_hours:
+        if self.task is not None and max(j.delta_hours) > self.task.horizon_hours:
             raise ConfigError("jepa.delta_hours must not exceed task.horizon_hours (embargo before validation)")
         if not 0.0 < j.ema_tau <= j.ema_tau_end <= 1.0:
             raise ConfigError("need 0 < jepa.ema_tau <= jepa.ema_tau_end <= 1")
@@ -162,10 +181,11 @@ class ExperimentConfig:
             raise ConfigError("pretrain.freeze_encoder requires pretrain.checkpoint")
         if self.pretrain.freeze_random_encoder and self.pretrain.checkpoint:
             raise ConfigError("pretrain.freeze_random_encoder is a control without checkpoint")
-        try:
-            self.task.validate()
-        except ValueError as exc:
-            raise ConfigError(f"task: {exc}") from exc
+        if self.task is not None:
+            try:
+                self.task.validate()
+            except ValueError as exc:
+                raise ConfigError(f"task: {exc}") from exc
 
 
 def _build(cls, raw: dict[str, Any], where: str):
@@ -175,7 +195,7 @@ def _build(cls, raw: dict[str, Any], where: str):
         raise ConfigError(f"unknown keys in [{where}]: {sorted(unknown)}")
     kwargs = {}
     for name, value in raw.items():
-        sub = {"synthetic": SyntheticSection}.get(name) if cls is DataSection else None
+        sub = {"synthetic": SyntheticSection, "ev": EVSection}.get(name) if cls is DataSection else None
         kwargs[name] = _build(sub, value, f"{where}.{name}") if sub else value
     try:
         return cls(**kwargs)
@@ -195,7 +215,7 @@ def config_from_dict(raw: dict[str, Any]) -> ExperimentConfig:
     unknown = set(raw) - set(_SECTIONS)
     if unknown:
         raise ConfigError(f"unknown sections: {sorted(unknown)}")
-    for required in ("experiment", "data", "task"):
+    for required in ("experiment", "data"):
         if required not in raw:
             raise ConfigError(f"missing required section [{required}]")
     cfg = ExperimentConfig(**{k: _build(_SECTIONS[k], v, k) for k, v in raw.items()})

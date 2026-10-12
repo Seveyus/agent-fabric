@@ -33,20 +33,13 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from core.dataset.temporal_graph import (
-    HISTORY_FEATURES,
-    METADATA,
-    TemporalTask,
-    build_pr_merge_task,
-    load_events,
-)
+from core.dataset.temporal_graph import TemporalTask, build_pr_merge_task, load_events
 from models.hetero_gnn import NodeClassifier, build_encoder
 from training.backends import SamplerSpec, make_backend
 from training.config import ExperimentConfig, load_config
 from training.metrics import best_f1_threshold, binary_metrics, bootstrap_auc_ci
 
 log = logging.getLogger(__name__)
-SEED_TYPE = "pr"
 
 
 # --------------------------------------------------------------------------- #
@@ -62,14 +55,23 @@ def seed_everything(seed: int) -> None:
 def prepare_task(cfg: ExperimentConfig) -> TemporalTask:
     """Load the cached task if it matches the task config, otherwise build it."""
     cache = Path(cfg.data.cache) if cfg.data.cache else None
+    expected = asdict(cfg.data.ev) if cfg.data.source == "ev_fleet" else asdict(cfg.task)
     if cache is not None and cache.exists():
         task = TemporalTask.load(cache)
-        if task.meta.get("config") == asdict(cfg.task):
+        if task.meta.get("config") == expected:
             log.info("Loaded cached task %s", cache)
             return task
         log.warning("Cached task %s was built with a different task config; rebuilding", cache)
 
     t0 = time.perf_counter()
+    if cfg.data.source == "ev_fleet":
+        from core.dataset.ev_fleet import EVFleetConfig, build_ev_task
+
+        task = build_ev_task(EVFleetConfig(**asdict(cfg.data.ev)))
+        task.meta["build_seconds"] = time.perf_counter() - t0
+        if cache is not None:
+            task.save(cache)
+        return task
     if cfg.data.source == "synthetic":
         from core.dataset.synthetic_events import SyntheticConfig, generate_events
 
@@ -87,24 +89,34 @@ def prepare_task(cfg: ExperimentConfig) -> TemporalTask:
 
 
 def select_features(task: TemporalTask, use_history: bool) -> list[str]:
-    """Optionally drop the history aggregates from *all* PR nodes."""
-    names = list(task.feature_names["pr"])
+    """Optionally drop the engineered history/aggregate features from *all* seed-type nodes."""
+    st = task.seed_type
+    names = list(task.feature_names[st])
     if use_history:
         return names
-    keep = [i for i, n in enumerate(names) if n not in HISTORY_FEATURES]
-    task.data["pr"].x = task.data["pr"].x[:, keep].contiguous()
+    hist = set(task.history_features)
+    keep = [i for i, n in enumerate(names) if n not in hist]
+    task.data[st].x = task.data[st].x[:, keep].contiguous()
     names = [names[i] for i in keep]
-    task.feature_names["pr"] = names
+    task.feature_names[st] = names
     return names
 
 
-def standardise(task: TemporalTask) -> dict[str, list[float]]:
-    """z-score PR features with statistics of the *training seeds* only."""
-    x = task.data["pr"].x
-    ref = x[task.splits["train"].node]
-    mean, std = ref.mean(0), ref.std(0).clamp_min(1e-6)
-    task.data["pr"].x = (x - mean) / std
-    return {"mean": mean.tolist(), "std": std.tolist()}
+def standardise(task: TemporalTask) -> dict[str, dict[str, list[float]]]:
+    """z-score node features. Seed-type statistics come from the *training seeds*
+    only; other node types (static entities) use all their nodes."""
+    stats = {}
+    for nt in task.data.node_types:
+        x = task.data[nt].x
+        ref = x[task.splits["train"].node] if nt == task.seed_type else x
+        if ref.size(0) < 2:
+            continue
+        mean, std = ref.mean(0), ref.std(0)
+        std = torch.where(std > 1e-6, std, torch.ones_like(std))  # constant columns stay as they are
+        mean = torch.where(ref.std(0) > 1e-6, mean, torch.zeros_like(mean))
+        task.data[nt].x = (x - mean) / std
+        stats[nt] = {"mean": mean.tolist(), "std": std.tolist()}
+    return stats
 
 
 def subsample_train(task: TemporalTask, fraction: float, seed: int) -> None:
@@ -117,21 +129,21 @@ def subsample_train(task: TemporalTask, fraction: float, seed: int) -> None:
     task.splits["train"] = type(s)(node=s.node[keep], time=s.time[keep], y=s.y[keep])
 
 
-def make_spec(cfg: ExperimentConfig) -> SamplerSpec:
+def make_spec(cfg: ExperimentConfig, metadata) -> SamplerSpec:
     if cfg.model.encoder == "mlp":  # no message passing: sample the seeds only
         return SamplerSpec(fanout=None, default_fanout=[0], batch_size=cfg.sampler.batch_size, temporal=False)
     fanout = {tuple(k.split("/")): v for k, v in cfg.sampler.fanout.items()}
-    unknown = set(fanout) - set(METADATA[1])
+    unknown = set(fanout) - set(metadata[1])
     if unknown:
         raise ValueError(f"sampler.fanout refers to unknown edge types: {sorted(unknown)}")
     return SamplerSpec(fanout=fanout, default_fanout=cfg.sampler.default_fanout,
                        batch_size=cfg.sampler.batch_size, temporal=cfg.sampler.temporal)
 
 
-def build_model(cfg: ExperimentConfig, in_dims: dict[str, int]) -> NodeClassifier:
+def build_model(cfg: ExperimentConfig, in_dims: dict[str, int], metadata, seed_type: str) -> NodeClassifier:
     m = cfg.model
-    enc = build_encoder(m.encoder, in_dims, METADATA, hidden=m.hidden, num_layers=m.num_layers,
-                        heads=m.heads, dropout=m.dropout, seed_type=SEED_TYPE)
+    enc = build_encoder(m.encoder, in_dims, metadata, hidden=m.hidden, num_layers=m.num_layers,
+                        heads=m.heads, dropout=m.dropout, seed_type=seed_type)
     return NodeClassifier(enc)
 
 
@@ -154,7 +166,7 @@ def load_pretrained_encoder(model: NodeClassifier, cfg: ExperimentConfig) -> dic
 # Train / eval loops                                                          #
 # --------------------------------------------------------------------------- #
 
-def _run(model, loader, labels: torch.Tensor, device, optimizer=None, max_batches: int = 0,
+def _run(model, loader, labels: torch.Tensor, device, seed_type: str, optimizer=None, max_batches: int = 0,
          grad_clip: float = 1.0) -> dict:
     train = optimizer is not None
     model.train(train)
@@ -170,9 +182,9 @@ def _run(model, loader, labels: torch.Tensor, device, optimizer=None, max_batche
             break
         batch = batch.to(device)
         t1 = time.perf_counter()
-        y = labels[batch[SEED_TYPE].input_id.cpu()].to(device)
+        y = labels[batch[seed_type].input_id.cpu()].to(device)
         with torch.set_grad_enabled(train):
-            logits = model(batch, SEED_TYPE)
+            logits = model(batch, seed_type)
             loss = F.binary_cross_entropy_with_logits(logits, y)
             if train:
                 optimizer.zero_grad(set_to_none=True)
@@ -243,9 +255,10 @@ def run_experiment(cfg: ExperimentConfig, task: TemporalTask | None = None) -> d
     device = torch.device(cfg.backend.device)
     backend = make_backend(cfg.backend.name, task.data, device=cfg.backend.device,
                            **({"num_workers": cfg.backend.num_workers} if cfg.backend.name == "pyg" else {}))
-    spec = make_spec(cfg)
+    seed_type, metadata = task.seed_type, task.metadata
+    spec = make_spec(cfg, metadata)
     in_dims = {nt: task.data[nt].x.size(1) for nt in task.data.node_types}
-    model = build_model(cfg, in_dims).to(device)
+    model = build_model(cfg, in_dims, metadata, seed_type).to(device)
     pretrain_info = None
     if cfg.pretrain.checkpoint:
         pretrain_info = load_pretrained_encoder(model, cfg)
@@ -262,7 +275,7 @@ def run_experiment(cfg: ExperimentConfig, task: TemporalTask | None = None) -> d
 
     def loader(split: str, shuffle: bool):
         s = task.splits[split]
-        return backend.loader(SEED_TYPE, s.node, s.time, spec, shuffle=shuffle, generator=gen if shuffle else None)
+        return backend.loader(seed_type, s.node, s.time, spec, shuffle=shuffle, generator=gen if shuffle else None)
 
     best_auc, best_epoch, bad = -1.0, 0, 0
     history = []
@@ -270,10 +283,10 @@ def run_experiment(cfg: ExperimentConfig, task: TemporalTask | None = None) -> d
     with open(run_dir / "metrics.jsonl", "w") as mf:
         for epoch in range(1, cfg.train.epochs + 1):
             t0 = time.perf_counter()
-            tr = _run(model, loader("train", True), task.splits["train"].y, device, opt,
+            tr = _run(model, loader("train", True), task.splits["train"].y, device, seed_type, opt,
                       cfg.train.max_batches_per_epoch, cfg.train.grad_clip)
             train_seconds += time.perf_counter() - t0
-            va = _run(model, loader("val", False), task.splits["val"].y, device)
+            va = _run(model, loader("val", False), task.splits["val"].y, device, seed_type)
             val_m = binary_metrics(va["y"], va["p"], 0.5)
             rec = {
                 "epoch": epoch, "train_loss": tr["loss"], "val_loss": va["loss"],
@@ -297,8 +310,8 @@ def run_experiment(cfg: ExperimentConfig, task: TemporalTask | None = None) -> d
                     break
 
     model.load_state_dict(torch.load(run_dir / "best.pt", weights_only=False)["model"])
-    va = _run(model, loader("val", False), task.splits["val"].y, device)
-    te = _run(model, loader("test", False), task.splits["test"].y, device)
+    va = _run(model, loader("val", False), task.splits["val"].y, device, seed_type)
+    te = _run(model, loader("test", False), task.splits["test"].y, device, seed_type)
     thr = best_f1_threshold(va["y"], va["p"])
     test_m = binary_metrics(te["y"], te["p"], thr)
     test_m["roc_auc_ci95"] = bootstrap_auc_ci(te["y"], te["p"], seed=cfg.experiment.seed)

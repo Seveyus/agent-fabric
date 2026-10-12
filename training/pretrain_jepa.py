@@ -30,7 +30,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from core.dataset.temporal_graph import METADATA, TemporalTask
+from core.dataset.temporal_graph import TemporalTask
 from models.hetero_gnn import build_encoder
 from models.temporal_jepa import TemporalNodeJEPA, future_only_view
 from training.backends import PyGBackend
@@ -60,6 +60,8 @@ def pretrain(cfg: ExperimentConfig, task: TemporalTask | None = None) -> dict:
         torch.set_num_threads(cfg.backend.torch_threads)
 
     task = task if task is not None else prepare_task(cfg)
+    if task.seed_type != SEED_TYPE or "open_ts" not in task.data["pr"]:
+        raise ValueError("temporal JEPA pretraining is defined for the PR-merge graph only")
     bot_col = task.feature_names["pr"].index("author_is_bot")
     author_is_bot = task.data["pr"].x[:, bot_col].clone()
     select_features(task, cfg.features.use_history)
@@ -76,10 +78,10 @@ def pretrain(cfg: ExperimentConfig, task: TemporalTask | None = None) -> dict:
 
     device = torch.device(cfg.backend.device)
     backend = PyGBackend(task.data, device=device, num_workers=cfg.backend.num_workers)
-    spec = make_spec(cfg)
+    spec = make_spec(cfg, task.metadata)
     in_dims = {nt: task.data[nt].x.size(1) for nt in task.data.node_types}
     m = cfg.model
-    encoder = build_encoder(m.encoder, in_dims, METADATA, hidden=m.hidden, num_layers=m.num_layers,
+    encoder = build_encoder(m.encoder, in_dims, task.metadata, hidden=m.hidden, num_layers=m.num_layers,
                             heads=m.heads, dropout=m.dropout)
     jepa = TemporalNodeJEPA(encoder, cfg.jepa.predictor_hidden, cfg.jepa.ema_tau, cfg.jepa.ema_tau_end).to(device)
     opt = torch.optim.AdamW(jepa.trainable_parameters(), lr=cfg.jepa.lr, weight_decay=cfg.jepa.weight_decay)
