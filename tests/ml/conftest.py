@@ -1,7 +1,6 @@
 import pytest
 
 
-
 @pytest.fixture(scope="session")
 def small_task():
     pytest.importorskip("torch_geometric")
