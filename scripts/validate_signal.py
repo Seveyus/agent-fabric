@@ -113,6 +113,9 @@ FAILURE_KEYWORDS = {
 WINDOW_DAYS = 7        # features construites sur 7 jours
 HORIZON_DAYS = 7       # label : failure dans les HORIZON_DAYS jours suivants
 
+# Mesuré : les payloads PR/Push sont tronqués entre le 2025-10-06 et le 2025-10-13.
+TRIMMED_PAYLOADS_FROM = date(2025, 10, 6)
+
 # Heures téléchargées depuis GH Archive (pour réduire le volume)
 # 0,6,12,18 = 4 fichiers par jour au lieu de 24
 DOWNLOAD_HOURS = [0, 6, 12, 18]
@@ -130,8 +133,20 @@ def cmd_download(days: int = 30, start_date: str | None = None) -> None:
     """
     DATA_RAW.mkdir(parents=True, exist_ok=True)
 
-    end = date.today() - timedelta(days=1)  # hier (le jour courant peut être incomplet)
-    start = date.fromisoformat(start_date) if start_date else end - timedelta(days=days)
+    yesterday = date.today() - timedelta(days=1)  # le jour courant peut être incomplet
+    if start_date:
+        start = date.fromisoformat(start_date)
+        end = min(yesterday, start + timedelta(days=days - 1))
+    else:
+        end = yesterday
+        start = end - timedelta(days=days)
+    if end >= TRIMMED_PAYLOADS_FROM:
+        log.warning(
+            "GitHub a tronqué les payloads de l'Events API à partir du %s : PullRequestEvent "
+            "n'a plus title/merged/additions, PushEvent n'a plus commits. Les features PR et "
+            "commits seront nulles. Utiliser --start 2025-09-01 (ou toute date < %s).",
+            TRIMMED_PAYLOADS_FROM, TRIMMED_PAYLOADS_FROM,
+        )
 
     urls = []
     d = start
@@ -545,7 +560,11 @@ def cmd_train() -> None:
 
     print("\n── VERDICT ──")
     best_auc = max(m["auc_roc"] for m in results.values())
-    if best_auc >= 0.70:
+    if full_eval_mode:
+        print("  Pas de verdict : métriques IN-SAMPLE (modèle entraîné et évalué sur les mêmes")
+        print("  fenêtres). Elles mesurent l'ajustement, pas la généralisation.")
+        print("  Collecter plus de jours pour obtenir un test temporel avec des positifs.")
+    elif best_auc >= 0.70:
         print(f"  ✓ AUC = {best_auc:.3f}  →  Signal fort. Le JEPA a du sens.")
         print("    Prochaine étape : passer à models/world_model.py")
     elif best_auc >= 0.62:
