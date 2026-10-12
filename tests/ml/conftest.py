@@ -1,10 +1,6 @@
 import pytest
 
 
-def pytest_configure(config):
-    config.addinivalue_line("markers", "cugraph: requires a CUDA GPU with the RAPIDS cuGraph-PyG stack")
-    config.addinivalue_line("markers", "slow: end-to-end training runs (a few seconds to a minute on CPU)")
-
 
 @pytest.fixture(scope="session")
 def small_task():

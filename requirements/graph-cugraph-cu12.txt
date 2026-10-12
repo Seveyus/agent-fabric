@@ -1,0 +1,24 @@
+# GPU stack for --backend cugraph. NOT VERIFIED in this repository: written from
+# the RAPIDS 26.10 install docs and cugraph-gnn's dependency pins, never installed
+# here (no usable NVIDIA driver on the development machine).
+#
+# Requirements (RAPIDS 26.10): Linux, NVIDIA GPU with compute capability >= 7.0
+# (Volta or newer), CUDA 12 driver >= 525.60.13, Python 3.11-3.13.
+# cugraph-pyg 26.10 is tested with torch 2.8 - 2.14 and torch-geometric >=2.5,<2.9.
+#
+#   pip install -r requirements/graph-cugraph-cu12.txt
+#
+--extra-index-url https://download.pytorch.org/whl/cu129
+--extra-index-url https://pypi.nvidia.com
+torch==2.8.0+cu129
+torch-geometric==2.7.0
+cugraph-pyg-cu12==26.10.*
+pylibwholegraph-cu12==26.10.*
+numpy
+polars
+scikit-learn
+lightgbm
+httpx
+orjson
+tqdm
+pytest

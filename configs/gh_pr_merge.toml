@@ -1,0 +1,65 @@
+# Real public data: GH Archive, 2025-08-25 .. 2025-09-15 (UTC), restricted to
+# the 24,475 repos with >= 2 distinct human PR authors in the warm-up week.
+# Build the event table first (see README "Reproduce"): core/dataset/gharchive_ingest.py
+#
+# Task: at PR-open time, will the PR be merged within 48 hours?
+#   warm-up (history only)   2025-08-25 .. 2025-08-31
+#   train seeds              2025-09-01 .. 2025-09-05   (labels resolved by 09-08)
+#   validation seeds         2025-09-08 .. 2025-09-09   (labels resolved by 09-12)
+#   test seeds               2025-09-12 .. 2025-09-13   (labels resolved by 09-16)
+
+[experiment]
+name = "gh_pr_merge_48h"
+seed = 0
+output_dir = "runs"
+
+[data]
+source = "gharchive"
+events = ["data/gharchive/events"]
+cache = "data/gharchive/task_pr_merge_48h.pt"
+
+[task]
+train_start = "2025-09-01"
+train_end = "2025-09-06"
+val_start = "2025-09-08"
+val_end = "2025-09-10"
+test_start = "2025-09-12"
+test_end = "2025-09-14"
+horizon_hours = 48
+max_train_seeds = 40000
+max_eval_seeds = 15000
+sample_seed = 0
+exclude_bot_authors = true
+
+[features]
+use_history = true
+
+[model]
+encoder = "hgt"
+hidden = 64
+num_layers = 2
+heads = 2
+dropout = 0.1
+
+[sampler]
+batch_size = 512
+default_fanout = [10, 5]
+
+[train]
+epochs = 8
+lr = 0.002
+weight_decay = 0.0001
+patience = 3
+
+[backend]
+name = "pyg"
+device = "cpu"
+
+[jepa]
+delta_hours = [12.0, 24.0, 48.0]
+epochs = 10
+lr = 0.001
+ema_tau = 0.996
+ema_tau_end = 1.0
+predictor_hidden = 128
+max_anchors = 40000

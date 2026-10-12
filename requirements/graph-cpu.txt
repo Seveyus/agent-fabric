@@ -1,0 +1,19 @@
+# Exact versions used for every result reported in this repository (CPU only).
+# python 3.12, Linux x86_64
+#
+#   python -m venv .venv && . .venv/bin/activate
+#   pip install -r requirements/graph-cpu.txt
+#
+--extra-index-url https://download.pytorch.org/whl/cpu
+--find-links https://data.pyg.org/whl/torch-2.8.0+cpu.html
+torch==2.8.0+cpu
+torch-geometric==2.7.0
+pyg-lib==0.5.0+pt28cpu        # edge-level temporal neighbour sampling + segment_matmul
+numpy==2.4.6
+polars==1.41.2
+scikit-learn==1.9.0
+lightgbm==4.6.0
+httpx==0.28.1
+orjson==3.11.9
+tqdm==4.68.2
+pytest==9.1.1
