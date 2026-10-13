@@ -83,10 +83,63 @@ def test_unknown_backend(small_task):
         make_backend("nope", small_task.data)
 
 
-@pytest.mark.cugraph
-def test_cugraph_temporal_sampling_never_returns_future_edges(small_task):
+def _cugraph_violations(backend, task, fanout: list[int], n_seeds: int = 30) -> dict:
+    """One seed per batch, so every sampled edge belongs to that seed. cuGraph-PyG
+    heterogeneous batches carry e_id but no edge times, so times are looked up
+    in the original graph through e_id."""
+    data = task.data
+    s = task.splits["val"]
+    spec = SamplerSpec(fanout=None, default_fanout=fanout, batch_size=1, temporal=True)
+    out = {"edges": 0, "future": 0, "e_id_mismatch": 0}
+    for k in range(min(n_seeds, len(s))):
+        batch = next(iter(backend.loader("pr", s.node[k:k + 1], s.time[k:k + 1], spec, shuffle=False)))
+        assert int(batch["pr"].n_id[0]) == int(s.node[k])
+        for et in batch.edge_types:
+            st = batch[et]
+            if st.edge_index.numel() == 0:
+                continue
+            e_id = st.e_id.cpu()
+            src = batch[et[0]].n_id.cpu()[st.edge_index[0].cpu()]
+            dst = batch[et[2]].n_id.cpu()[st.edge_index[1].cpu()]
+            out["edges"] += e_id.numel()
+            out["future"] += int((data[et].time[e_id] > s.time[k]).sum())
+            out["e_id_mismatch"] += int(((data[et].edge_index[0, e_id] != src) |
+                                         (data[et].edge_index[1, e_id] != dst)).sum())
+    return out
+
+
+@pytest.fixture(scope="module")
+def cugraph_backend(small_task):
     ok, reason = cugraph_available()
     if not ok:
         pytest.skip(reason)
-    backend = make_backend("cugraph", small_task.data, device="cuda")
-    _check_batches(backend, small_task)
+    return make_backend("cugraph", small_task.data, device="cuda")
+
+
+@pytest.mark.cugraph
+def test_cugraph_shuffled_batches_have_aligned_seeds(cugraph_backend, small_task):
+    s = small_task.splits["val"]
+    for i, batch in enumerate(cugraph_backend.loader("pr", s.node, s.time, SPEC, shuffle=True)):
+        if i >= 5:
+            break
+        bs = batch["pr"].batch_size
+        ids = batch["pr"].input_id.cpu()
+        assert torch.equal(batch["pr"].n_id[:bs].cpu(), s.node[ids])
+        assert torch.equal(batch["pr"].seed_time.cpu(), s.time[ids])
+
+
+@pytest.mark.cugraph
+def test_cugraph_one_hop_temporal_sampling_is_correct(cugraph_backend, small_task):
+    r = _cugraph_violations(cugraph_backend, small_task, [6])
+    assert r["edges"] > 0 and r["future"] == 0 and r["e_id_mismatch"] == 0, r
+
+
+@pytest.mark.cugraph
+@pytest.mark.xfail(strict=True, reason=(
+    "cugraph-pyg 26.10, measured on a GTX 1650: 2-hop heterogeneous temporal sampling "
+    "returns ~0.6-0.9% edges newer than the seed and ~0.7% edges whose e_id disagrees "
+    "with the reported endpoints (scripts/cugraph_temporal_check.py, "
+    "experiments/results/cugraph_temporal_check.json). Remove the xfail once fixed upstream."))
+def test_cugraph_two_hop_temporal_sampling_never_returns_future_edges(cugraph_backend, small_task):
+    r = _cugraph_violations(cugraph_backend, small_task, [6, 3])
+    assert r["edges"] > 0 and r["future"] == 0 and r["e_id_mismatch"] == 0, r

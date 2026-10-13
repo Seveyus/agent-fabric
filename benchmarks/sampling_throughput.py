@@ -66,9 +66,10 @@ def bench_sampling(backend, task, spec: SamplerSpec, n_batches: int, warmup: int
     it = iter(loader)
     for _ in range(warmup):
         next(it, None)
-    seeds = nodes = edges = batches = 0
+    seeds = nodes = edges = batches = invalid = 0
     t0 = time.perf_counter()
     for batch in it:
+        invalid += int(getattr(batch, "num_invalid_edges", 0) or 0)
         seeds += batch["pr"].batch_size
         nodes += sum(batch[nt].num_nodes for nt in batch.node_types)
         edges += sum(batch[et].edge_index.size(1) for et in batch.edge_types)
@@ -81,6 +82,7 @@ def bench_sampling(backend, task, spec: SamplerSpec, n_batches: int, warmup: int
         "seeds_per_s": seeds / dt, "nodes_per_s": nodes / dt, "edges_per_s": edges / dt,
         "mean_nodes_per_batch": nodes / max(1, batches), "mean_edges_per_batch": edges / max(1, batches),
         "ms_per_batch": 1000 * dt / max(1, batches),
+        "invalid_edges_dropped": invalid,  # cuGraph backend only (see training/backends.py)
     }
 
 
@@ -207,15 +209,16 @@ def main(argv: list[str] | None = None) -> None:
     lines = [f"# Sampling / training-step throughput — backend `{args.backend}`", "",
              f"- host: {host}", f"- backend: {env}", "",
              "| Graph | Nodes | Edges | Graph MB | Fanout | Batch | Temporal | Sampling seeds/s | Sampled edges/s "
-             "| Nodes/batch | SAGE train seeds/s (sampling share) | HGT train seeds/s (sampling share) |",
-             "|---|---|---|---|---|---|---|---|---|---|---|---|"]
+             "| Nodes/batch | SAGE train seeds/s (sampling share) | HGT train seeds/s (sampling share) "
+             "| Invalid edges dropped |",
+             "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in rows:
         ts = {t["encoder"]: f"{t['seeds_per_s']:.0f} ({100 * t['sampling_share']:.0f}%)" for t in r["train_step"]}
         sm = r["sampling"]
         lines.append(f"| {r['graph']} | {r['num_nodes']:,} | {r['num_edges']:,} | {r['graph_mb']:.0f} | "
                      f"{r['fanout']} | {r['batch_size']} | {r['temporal']} | {sm['seeds_per_s']:.0f} | "
                      f"{sm['edges_per_s']:.0f} | {sm['mean_nodes_per_batch']:.0f} | {ts.get('sage', '—')} | "
-                     f"{ts.get('hgt', '—')} |")
+                     f"{ts.get('hgt', '—')} | {sm.get('invalid_edges_dropped', 0)} |")
     (out / f"{stem}.md").write_text("\n".join(lines) + "\n")
     log.info("wrote %s", out / f"{stem}.md")
 

@@ -1,0 +1,106 @@
+{
+  "cugraph_pyg": "26.10.00",
+  "torch": "2.8.0+cu129",
+  "gpu": "NVIDIA GeForce GTX 1650 with Max-Q Design",
+  "rows": [
+    {
+      "comparison": "monotonically_decreasing",
+      "disjoint": true,
+      "fanout": [
+        6,
+        3
+      ],
+      "seeds": 60,
+      "edges": 1850,
+      "reported_pair_only_in_future": 11,
+      "e_id_edge_after_seed_time": 16,
+      "e_id_endpoint_mismatch": 16,
+      "future_pairs_by_relation": {
+        "issue_activity": 4,
+        "closed_unmerged_in": 2,
+        "rev_comments_on": 1,
+        "rev_closes": 1,
+        "rev_approves": 1,
+        "rev_authored_merged": 2
+      }
+    },
+    {
+      "comparison": "monotonically_decreasing",
+      "disjoint": true,
+      "fanout": [
+        6
+      ],
+      "seeds": 60,
+      "edges": 120,
+      "future_pairs_by_relation": {}
+    },
+    {
+      "comparison": "monotonically_decreasing",
+      "disjoint": false,
+      "fanout": [
+        6,
+        3
+      ],
+      "seeds": 60,
+      "edges": 1845,
+      "e_id_endpoint_mismatch": 12,
+      "reported_pair_only_in_future": 12,
+      "e_id_edge_after_seed_time": 12,
+      "future_pairs_by_relation": {
+        "stars": 1,
+        "issue_activity": 2,
+        "closed_unmerged_in": 2,
+        "rev_closes": 1,
+        "rev_reviews": 1,
+        "rev_comments_on": 1,
+        "rev_approves": 2,
+        "forks": 1,
+        "rev_authored_merged": 1
+      }
+    },
+    {
+      "comparison": "monotonically_decreasing",
+      "disjoint": false,
+      "fanout": [
+        6
+      ],
+      "seeds": 60,
+      "edges": 120,
+      "future_pairs_by_relation": {}
+    },
+    {
+      "comparison": "strictly_decreasing",
+      "disjoint": true,
+      "fanout": [
+        6,
+        3
+      ],
+      "error": "KeyError: 'renumber_map'"
+    },
+    {
+      "comparison": "strictly_decreasing",
+      "disjoint": true,
+      "fanout": [
+        6
+      ],
+      "error": "KeyError: 'renumber_map'"
+    },
+    {
+      "comparison": "strictly_decreasing",
+      "disjoint": false,
+      "fanout": [
+        6,
+        3
+      ],
+      "error": "KeyError: 'renumber_map'"
+    },
+    {
+      "comparison": "strictly_decreasing",
+      "disjoint": false,
+      "fanout": [
+        6
+      ],
+      "error": "KeyError: 'renumber_map'"
+    }
+  ]
+}
