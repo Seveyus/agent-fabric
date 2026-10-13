@@ -1,24 +1,26 @@
-# GPU stack for --backend cugraph. NOT VERIFIED in this repository: written from
-# the RAPIDS 26.10 install docs and cugraph-gnn's dependency pins, never installed
-# here (no usable NVIDIA driver on the development machine).
+# GPU stack for --backend cugraph (scripts/setup_gpu_env.sh installs it into .venv-gpu).
+# Package availability checked 2026-10-12: torch 2.8.0+cu129 (download.pytorch.org),
+# pyg-lib 0.5.0+pt28cu129 (data.pyg.org), cugraph-pyg-cu12 26.10.0 and
+# pylibwholegraph-cu12 26.10.0 (pypi.nvidia.com). Download ~4.4 GB for the CUDA
+# torch stack alone; plan ~11 GB of free disk for the whole environment.
 #
 # Requirements (RAPIDS 26.10): Linux, NVIDIA GPU with compute capability >= 7.0
 # (Volta or newer), CUDA 12 driver >= 525.60.13, Python 3.11-3.13.
 # cugraph-pyg 26.10 is tested with torch 2.8 - 2.14 and torch-geometric >=2.5,<2.9.
 #
-#   pip install -r requirements/graph-cugraph-cu12.txt
-#
 --extra-index-url https://download.pytorch.org/whl/cu129
 --extra-index-url https://pypi.nvidia.com
+--find-links https://data.pyg.org/whl/torch-2.8.0+cu129.html
 torch==2.8.0+cu129
 torch-geometric==2.7.0
+pyg-lib==0.5.0+pt28cu129
 cugraph-pyg-cu12==26.10.*
 pylibwholegraph-cu12==26.10.*
-numpy
-polars
-scikit-learn
-lightgbm
-httpx
-orjson
-tqdm
-pytest
+numpy==2.4.6
+polars==1.41.2
+scikit-learn==1.9.0
+lightgbm==4.6.0
+httpx==0.28.1
+orjson==3.11.9
+tqdm==4.68.2
+pytest==9.1.1
