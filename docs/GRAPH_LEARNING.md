@@ -27,11 +27,11 @@ extrapolated.
 | Temporal heterogeneous PR graph + PR-merge task | IMPLEMENTED, tested | `core/dataset/temporal_graph.py` |
 | Point-in-time features, embargoed splits | IMPLEMENTED, tested against brute force | same |
 | Temporal neighbour sampling, PyG + pyg-lib (CPU) | IMPLEMENTED, tested (no future edges) | `training/backends.py` |
-| Temporal neighbour sampling, cuGraph-PyG (GPU) | **NOT VERIFIED** — written against the 26.10 API, never executed (no usable GPU driver here) | `training/backends.py` |
+| Temporal neighbour sampling, cuGraph-PyG (GPU) | **RUNS on a GPU** (GTX 1650, after 7 workarounds); 1-hop temporal sampling exact; **2-hop not leakage-safe** (§8.1) — not used for training | `training/backends.py` |
 | MLP / HeteroSAGE / HGT node classifiers | IMPLEMENTED, tested | `models/hetero_gnn.py` |
 | Temporal node JEPA pretraining | IMPLEMENTED, tested; helps only with few labels (§10.3) | `models/temporal_jepa.py`, `training/pretrain_jepa.py` |
 | Config-driven runs, checkpoints, multi-seed suites | IMPLEMENTED | `training/node_task.py`, `training/suite.py` |
-| Throughput benchmark | IMPLEMENTED; CPU results measured, GPU NOT RUN | `benchmarks/sampling_throughput.py` |
+| Throughput benchmark | IMPLEMENTED; CPU, PyG + GPU model and cuGraph measured on one laptop (§11) | `benchmarks/sampling_throughput.py` |
 | EV fleet example (synthetic) | IMPLEMENTED | `core/dataset/ev_fleet.py` |
 | Snapshot-level JEPA (original prototype) | Fixed to run and to be leakage-free; not evaluated on real data | `models/world_model.py`, `training/train.py` |
 | Pre-flight API using a learned model | PLANNED (the API still uses heuristic scores) | `apps/api/routers/preflight.py` |
@@ -251,9 +251,8 @@ granularity — repository state, not PR — and is not evaluated here.
 
 `training/backends.py` exposes one loader interface. Both backends produce a
 `HeteroData` with `batch[seed].input_id`, `.batch_size`, `.n_id` and the seeds
-first in input order — verified for PyG; for cuGraph-PyG this is what its
-26.10 sampler code sets (`cugraph_pyg/sampler/sampler.py`). The model and
-training loop do not know which backend produced the batch.
+first in input order (for cuGraph-PyG only after the realignment in §8.1).
+The model and training loop do not know which backend produced the batch.
 
 | | `pyg` | `cugraph` |
 |---|---|---|
@@ -263,8 +262,8 @@ training loop do not know which backend produced the batch.
 | Temporal rule | every sampled edge `time ≤ seed_time` (all hops vs. the seed) | `temporal_comparison="monotonically_decreasing"`: times must not increase along the sampled path, starting from the seed time — a subset of PyG's candidates |
 | Output | `HeteroData` (host), then `.to(device)` | `HeteroData` produced on the GPU |
 | Model forward/backward | PyTorch | PyTorch |
-| Init | none | `torch.distributed` (NCCL) → cuGraph comms → RMM → WholeGraph, as in the cuGraph-PyG examples |
-| Status here | measured | **NOT VERIFIED** (never executed) |
+| Init | none | `torch.distributed` (NCCL) → RMM → WholeGraph; cuGraph comms only for world size > 1 |
+| Status here | measured, leakage tests pass | runs; 1-hop exact; 2-hop returns some future edges and corrupt indices (§8.1) |
 
 Consequences for a reviewer:
 
@@ -282,18 +281,46 @@ Consequences for a reviewer:
   was closed as "not planned" on 2026-10-01, so this combination has no
   upstream reference either.
 
-**Running the GPU path** (requires Linux, NVIDIA GPU with compute capability
-≥ 7.0, CUDA 12 driver ≥ 525.60.13):
+### 8.1 What happened on a real GPU
 
-```bash
-pip install -r requirements/graph-cugraph-cu12.txt
-pytest tests/ml -m cugraph                                  # contract + no-future-edge test
-python -m benchmarks.sampling_throughput --backend cugraph --device cuda --scales 2000 20000 60000
-python -m training.node_task --config configs/gh_pr_merge.toml --set backend.name='"cugraph"' --set backend.device='"cuda"'
-```
+Hardware and stack: GeForce GTX 1650 Max-Q (Turing, CC 7.5, 4 GB), driver
+595.99.02, cugraph-pyg-cu12 / pylibcugraph-cu12 / pylibwholegraph-cu12 26.10.0
+from pip, torch 2.8.0+cu129, torch-geometric 2.7.0, single process.
+`bash scripts/setup_gpu_env.sh` reproduces the install and the checks.
 
-On the development laptop (GTX 1650, CC 7.5, 4 GB) this is blocked by the
-driver: the NVIDIA module exists only for kernel 7.0.0-31 while 7.0.0-34 runs.
+**Workarounds needed before a batch reached a model** (each in
+`training/backends.py`, with the measured symptom):
+
+| Symptom | Cause | Workaround |
+|---|---|---|
+| `cugraph_comms_create_unique_id` → "raft-dask and/or ucxx could not be imported" | the pip wheel does not install raft-dask/ucxx; the examples always initialise comms | skip comms when world size is 1 (`GraphStore` then builds an `SGGraph`) |
+| `RuntimeError: This feature requires the cudf package` on a torch tensor | `isinstance(x, (cupy.ndarray, cudf.Series))` with cudf absent | replace the missing-module placeholder by a namespace with an unused `Series` type |
+| process abort in `create_wholememory_tensor` (`shmget` EINVAL on host, `cuMemAddressReserve` INVALID_VALUE on device); 360 leaked SysV segments after three crashes | an edge type with **zero** edges → 0-byte WholeGraph allocation | skip empty edge types; keep WholeGraph storage on the device |
+| `torch.split: split_size can only be 0…` on the 12.4 M-edge graph | auto `local_seeds_per_call` ≈ 0.11·GPU memory / Π(per-hop fan-out summed over 30 edge types) ≈ 35 seeds → 0 batches per call | pass `local_seeds_per_call` explicitly (≥ batch size) |
+| labels silently misaligned with `shuffle=True` | heterogeneous output: seed rows sorted by node id, `input_id` in shuffled order; no `seed_time` | realign `input_id` by node id, set `seed_time` |
+| device-side assert in `index_select` during training | ~2 % of batches contain edges whose local indices exceed the sampled node set | drop and count such edges (`num_invalid_edges`) |
+| fan-out `[0]` (seed-only batches) → `CUGRAPH_UNKNOWN_ERROR std::get: wrong index for variant` | — | not worked around (the MLP baseline uses the PyG path) |
+
+**Correctness** (`scripts/cugraph_temporal_check.py`, one seed per batch, 60
+seeds, synthetic graph; `experiments/results/cugraph_temporal_check.json`):
+
+| Fan-out | Sampled edges | Edges newer than the seed | Edges whose `e_id` ≠ reported endpoints |
+|---|---|---|---|
+| [6] (1 hop) | 120 | 0 | 0 |
+| [6, 3], disjoint | 1,850 | 16 (0.9 %) | 16 |
+| [6, 3], non-disjoint | 1,845 | 12 (0.7 %) | 12 |
+
+`temporal_comparison="strictly_decreasing"` raises `KeyError: 'renumber_map'`.
+Under the documented path-monotone rule a hop-2 edge newer than the seed should
+be impossible, so this looks like a sampler issue (draft report:
+[upstream_issue_cugraph_pyg.md](upstream_issue_cugraph_pyg.md), not filed).
+Tests: seed alignment and 1-hop correctness pass on the GPU; the 2-hop
+no-future-edge test is a strict `xfail`.
+
+**Consequence.** The cuGraph backend is usable for throughput measurements but
+not for training the leakage-sensitive PR task: 2-hop neighbourhoods can
+contain future interactions, and a fraction of edges are wired to the wrong
+nodes. All model results in §10 use the PyG sampler.
 
 ## 9. Evaluation protocol
 
@@ -484,45 +511,64 @@ batch 1024 a GH batch has 37 k nodes. Non-temporal (non-disjoint) sampling at
 [10, 5] / 256 was *slower* than temporal (36 k vs 48 k seeds/s on GH) because
 it returns larger neighbourhoods (8.9 k vs 6.2 k nodes per batch).
 
-**Answers to the questions a RAPIDS engineer would ask** (measured where
-stated, otherwise reasoning):
+**GPU session (same laptop, same session, `performance` power profile for all three runs).**
+Sources: [`benchmark_gpu_session_1_cpu_only.md`](../experiments/results/benchmark_gpu_session_1_cpu_only.md),
+[`benchmark_gpu_session_2_pyg_sampler_gpu_model.md`](../experiments/results/benchmark_gpu_session_2_pyg_sampler_gpu_model.md),
+[`benchmark_gpu_session_3_cugraph.md`](../experiments/results/benchmark_gpu_session_3_cugraph.md),
+[`cugraph_seeds_per_call.json`](../experiments/results/cugraph_seeds_per_call.json).
+GeForce GTX 1650 Max-Q (4 GB) and i5-11300H at up to 4 GHz. GH Archive graph,
+ranges over fan-outs [5,3] / [10,5] / [20,10] and batch 256 / 1024:
 
-1. *What would cuGraph-PyG accelerate here?* Neighbour sampling (temporal,
-   heterogeneous, disjoint) and the feature/time gather for sampled nodes:
-   `GraphStore` builds the cuGraph graph in GPU memory, `FeatureStore` holds
-   features and edge times in WholeGraph memory, and the loader returns
-   GPU-resident `HeteroData`. Not touched: graph construction from events
-   (polars on CPU; cuDF would be the RAPIDS equivalent, not implemented),
-   tabular baselines (cuML / GPU XGBoost not used).
-2. *What stays in PyTorch?* Model forward/backward (HGTConv / SAGEConv /
-   MLP), loss, optimiser, metrics — on whatever device the model is on.
-3. *What runs on the GPU?* With `--backend cugraph`: sampling, gather and the
-   model. With `--backend pyg --device cuda`: only the model; sampling stays on
-   CPU and each batch is copied to the GPU.
-4. *Memory and transfer.* The GH graph is 396 MB of tensors (edge indices,
-   edge times, features). One [10, 5] batch of 512 seeds is ~17 k nodes and
-   ~26 k edges, i.e. a few MB of features and indices — a small host→device
-   copy per batch on the PyG path. The cuGraph path keeps the graph on the GPU,
-   so GPU memory must hold the cuGraph graph (both directions are explicit,
-   12.4 M edges), edge times (cuGraph converts them to double for `last`
-   sampling), WholeGraph features, RMM pools and the model; on a 4 GB GPU this
-   is plausible for this graph but unmeasured.
-5. *How does sampling affect performance?* On this CPU it barely does:
-   2-10 % of a train step (measured). The model compute dominates. Therefore
-   a GPU sampler alone would not speed this pipeline up on CPU — the gain
-   requires the model on a GPU too.
-6. *When could GPU sampling matter?* (reasoning, not measured) Once the model
-   runs on a GPU, each train step gets much faster while the CPU sampler stays
-   at ~42-90 k seeds/s on this graph. If a GPU HGT step reached tens of
-   thousands of seeds/s, CPU sampling would become the bottleneck and moving
-   it to the GPU would be the next step. Separately, the host-memory path does
-   not scale to the full GitHub event graph (this graph is 24 k of the
-   millions of active repositories); multi-GPU storage (WholeGraph) and
-   sampling is the relevant regime there. Both need measurement.
-7. *Limitations of this implementation.* Not executed on a GPU; temporal rule
-   differs from PyG (`monotonically_decreasing` path constraint vs. "≤ seed
-   time" at every hop); JEPA pretraining not wired for cuGraph; HGT on
-   cuGraph-PyG batches has no upstream example.
+| Configuration | Sampling, seeds/s | HeteroSAGE train step, seeds/s | HGT train step, seeds/s | Sampling share of a train step |
+|---|---|---|---|---|
+| 1. PyG sampler (CPU) + model on CPU | 46 k – 87 k | 2.7 k – 5.8 k | 1.4 k – 2.8 k | 2 – 10 % |
+| 2. PyG sampler (CPU) + model on GPU | 46 k – 97 k | 9.3 k – 24 k | 5.8 k – 13.4 k | 12 – 32 % |
+| 3. cuGraph-PyG sampler (GPU) + model on GPU | 1.2 k – 5.1 k | 1.1 k – 4.5 k | 1.1 k – 3.9 k | 68 – 91 % |
+
+Full sampling epoch (40,000 seeds, fan-out [10, 5], batch 1024):
+
+| Sampler | Seconds | Seeds/s | Invalid edges dropped |
+|---|---|---|---|
+| pyg-lib, CPU, 4 threads | 0.46 | 86,877 | 0 |
+| cuGraph-PyG, 1 batch per sampling call | 9.18 | 4,359 | 21 |
+| cuGraph-PyG, 4 batches per call | 4.52 | 8,841 | 24 |
+| cuGraph-PyG, 16 batches per call | 3.10 | 12,898 | 25 |
+| cuGraph-PyG, whole epoch in one call | 2.68 | 14,918 | 30 |
+
+**Answers to the questions a RAPIDS engineer would ask** (measured unless
+marked as reasoning):
+
+1. *What does cuGraph-PyG accelerate here?* Neighbour sampling (temporal,
+   heterogeneous, disjoint) and the gather of sampled features: `GraphStore`
+   builds the cuGraph graph in GPU memory, `FeatureStore` holds features and
+   edge times in WholeGraph memory, the loader returns GPU-resident
+   `HeteroData`. Not touched: graph construction from events (polars on CPU;
+   cuDF would be the RAPIDS equivalent, not implemented), tabular baselines.
+2. *What stays in PyTorch?* Model forward/backward (HGTConv / SAGEConv / MLP),
+   loss, optimiser, metrics.
+3. *What runs on the GPU?* Configuration 3: sampling, gather and model.
+   Configuration 2: only the model; sampling stays on CPU and each batch is
+   copied to the GPU (a few MB per batch of 1024 seeds).
+4. *Memory.* The GH graph is 396 MB of tensors on the host. With cuGraph the
+   graph, edge times and features live on the GPU: 2.47 GB of the 4 GB were in
+   use while sampling a whole 40 k-seed epoch in one call; one batch per call
+   needs far less (torch's own peak 0.5 GB).
+5. *How does sampling affect performance?* On CPU it barely matters (2–10 % of
+   a step). Moving the model to the GPU speeds HGT up 3–5× and raises the
+   CPU sampler's share to 12–32 % — sampling becomes the next bottleneck, as
+   expected.
+6. *Does the GPU sampler remove that bottleneck here?* No. On this laptop GPU,
+   with this graph (12.4 M edges, 30 edge types, temporal and disjoint), the
+   cuGraph-PyG sampler is slower than pyg-lib on four CPU cores: 20× with
+   one batch per sampling call, still 5.8× with the whole epoch in one call.
+   Per-call overhead dominates (3.0× faster with 16 batches per call, 3.4× with
+   the whole epoch in one call). Reasoning, not measured: a datacenter GPU,
+   graphs too large for host memory, homogeneous graphs or far fewer edge
+   types are the regime cuGraph targets; this experiment says nothing about
+   them.
+7. *Limitations.* The cuGraph path needed seven workarounds and is not
+   leakage-safe at 2 hops (§8.1); its temporal rule differs from PyG's; JEPA
+   pretraining is PyG-only; results come from one small GPU.
 
 **Timing hygiene learned on the way** (§9.1): pin `segment_matmul`
 (12× swing on HGT steps otherwise), isolate runs in processes, and remember
@@ -561,8 +607,9 @@ time on 4 cores.
 
 **Infrastructure**
 
-* Every measurement is CPU-only. The cuGraph-PyG backend has not been executed;
-  its temporal rule differs from PyG's, so batches are not comparable.
+* GPU measurements come from one laptop GPU (GTX 1650 Max-Q, 4 GB). The
+  cuGraph-PyG backend runs but is not leakage-safe at 2 hops and was slower
+  than CPU sampling here (§8.1, §11); all model results use the PyG sampler.
 * Temporal JEPA pretraining is PyG-only (needs edge times in the batch).
 * Reproducible sampling (`num_workers = 1`) costs ~1.6× epoch time on 4 cores.
 

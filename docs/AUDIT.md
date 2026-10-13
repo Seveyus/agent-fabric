@@ -35,8 +35,11 @@ evidence), **PLANNED** (described, not in code).
 * GPU: GeForce GTX 1650 Mobile (Turing, compute capability 7.5, 4 GB) is present
   but **unusable**: the NVIDIA 595 kernel module is built for kernel
   7.0.0-31 while 7.0.0-34 is running (`nvidia-smi` fails). CUDA toolkit 13.2 is
-  installed. Hence every number in this repository is CPU-only and the cuGraph
-  backend is unverified.
+  installed. Hence the first round of results is CPU-only.
+* Update (same day): after installing the NVIDIA module for the new kernel and
+  freeing disk space, the GPU works (driver 595.99.02). The cuGraph-PyG backend
+  was then executed and measured — see
+  [GRAPH_LEARNING §8.1 and §11](GRAPH_LEARNING.md#81-what-happened-on-a-real-gpu).
 
 ## What changed (see git log for details)
 

@@ -1,8 +1,9 @@
 # GPU stack for --backend cugraph (scripts/setup_gpu_env.sh installs it into .venv-gpu).
-# Package availability checked 2026-10-12: torch 2.8.0+cu129 (download.pytorch.org),
-# pyg-lib 0.5.0+pt28cu129 (data.pyg.org), cugraph-pyg-cu12 26.10.0 and
-# pylibwholegraph-cu12 26.10.0 (pypi.nvidia.com). Download ~4.4 GB for the CUDA
-# torch stack alone; plan ~11 GB of free disk for the whole environment.
+# Installed and tested 2026-10-12 on a GeForce GTX 1650 Max-Q (driver 595.99.02):
+# torch 2.8.0+cu129, pyg-lib 0.5.0+pt28cu129, cugraph-pyg-cu12 / pylibwholegraph-cu12
+# 26.10.0. ~6 GB of wheels, ~10 GB installed; install with uv (hard links) to keep the
+# peak disk use near the installed size. Known cugraph-pyg issues and the workarounds
+# used: docs/upstream_issue_cugraph_pyg.md.
 #
 # Requirements (RAPIDS 26.10): Linux, NVIDIA GPU with compute capability >= 7.0
 # (Volta or newer), CUDA 12 driver >= 525.60.13, Python 3.11-3.13.

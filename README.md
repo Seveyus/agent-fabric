@@ -83,7 +83,7 @@ flowchart LR
   B --> C[temporal HeteroData + seeds/labels<br/>core/dataset/temporal_graph.py]
   C --> D{sampling backend<br/>training/backends.py}
   D -- pyg: pyg-lib, CPU --> E[HeteroData mini-batches]
-  D -- cugraph: GPU, not verified --> E
+  D -- cugraph: GPU, runs, not leakage-safe at 2 hops --> E
   E --> F[MLP / HeteroSAGE / HGT<br/>models/hetero_gnn.py]
   F --> G[train / early stop / test<br/>training/node_task.py]
   C --> H[LogReg / LightGBM<br/>training/tabular_baselines.py]
@@ -177,20 +177,35 @@ EMA, alignment, embargo), where it helps and where it does not:
   sampling in pyg-lib (CPU). **Measured.**
 * `cugraph` — `cugraph_pyg.data.GraphStore` + WholeGraph `FeatureStore`
   (edge timestamps stored per edge type) and `cugraph_pyg.loader.NeighborLoader`
-  (26.10 API) with GPU temporal sampling. **Not verified**: written against the
-  API docs and the upstream examples, never executed — the development
-  machine's GTX 1650 has no working driver for the running kernel.
+  (26.10) with GPU temporal sampling. **Runs on a GeForce GTX 1650 Max-Q** after
+  seven workarounds (pip install without raft-dask/cudf, empty edge types,
+  seed-row alignment, seeds-per-call estimate, …), but **2-hop temporal
+  sampling is not leakage-safe**: ~0.7–0.9 % of sampled edges are newer than
+  the seed and ~2 % of batches contain out-of-range indices. Not used for
+  training; draft upstream report in
+  [docs/upstream_issue_cugraph_pyg.md](docs/upstream_issue_cugraph_pyg.md).
 
-What would run on the GPU, what stays in PyTorch, the different temporal rules
-of the two samplers, memory considerations and the benchmark to run:
-[GRAPH_LEARNING §8 and §11](docs/GRAPH_LEARNING.md#8-sampling-backends-pyg-and-cugraph-pyg).
+Measured on that laptop (GH graph, 12.4 M edges):
+
+| Configuration | Sampling seeds/s | HGT train seeds/s | Sampling share |
+|---|---|---|---|
+| PyG sampler + model on CPU | 46 k – 87 k | 1.4 k – 2.8 k | 2 – 10 % |
+| PyG sampler (CPU) + model on GPU | 46 k – 97 k | 5.8 k – 13.4 k | 12 – 32 % |
+| cuGraph sampler + model on GPU | 1.2 k – 5.1 k | 1.1 k – 3.9 k | 68 – 91 % |
+
+Putting the model on the GPU speeds HGT up 3–5× and makes sampling the next
+bottleneck. On this small GPU, though, cuGraph-PyG's heterogeneous temporal
+sampler is slower than pyg-lib on four CPU cores (5.8× even with a whole epoch
+per sampling call). This is one laptop GPU and one mid-size graph, not a
+statement about datacenter GPUs. Details:
+[GRAPH_LEARNING §8.1 and §11](docs/GRAPH_LEARNING.md#81-what-happened-on-a-real-gpu).
 
 ## Reproduce
 
 ```bash
 python3.12 -m venv .venv && . .venv/bin/activate
 pip install -r requirements/graph-cpu.txt        # torch 2.8 CPU, PyG 2.7, pyg-lib 0.5
-pytest tests/ml -q                               # 57 tests, ~1-2 min; the GPU test is skipped without one
+pytest tests/ml -q                               # 59 tests, ~1-2 min; the 3 cuGraph tests are skipped without a GPU
 
 # fast, self-contained (synthetic data, minutes)
 python -m training.node_task --config configs/synthetic_pr_merge.toml
@@ -206,19 +221,19 @@ Runs write `config.json`, `metrics.jsonl`, `best.pt`, `results.json` and test
 predictions under `runs/`. With the default `backend.num_workers = 1`, two runs
 with the same seed give identical metrics (tested).
 
-GPU path (requires an NVIDIA GPU with compute capability ≥ 7.0 and a CUDA 12
-driver; not verified here):
+GPU path (NVIDIA GPU with compute capability ≥ 7.0, CUDA 12 driver; ~10 GB of
+disk for `.venv-gpu`). Installs with uv, runs the cuGraph tests, the temporal
+correctness check and the GPU benchmarks:
 
 ```bash
-pip install -r requirements/graph-cugraph-cu12.txt
-pytest tests/ml -m cugraph
-python -m benchmarks.sampling_throughput --backend cugraph --device cuda --scales 2000 20000 60000
+bash scripts/setup_gpu_env.sh
 ```
 
 ## Limitations
 
-* **No GPU numbers.** All measurements are CPU-only; the cuGraph-PyG backend
-  is implemented but has never been executed.
+* **GPU evidence from one laptop.** GTX 1650 Max-Q, 4 GB. The cuGraph-PyG
+  backend runs but is not leakage-safe at 2 hops, and was slower than CPU
+  sampling there; all model results use the PyG sampler.
 * **One window.** Three weeks of September 2025, one temporal test window,
   24,475 pre-selected repositories, subsampled seeds; stability over time is
   not measured.
@@ -237,8 +252,8 @@ Full list: [GRAPH_LEARNING §12](docs/GRAPH_LEARNING.md#12-limitations-and-next-
 
 ## Next steps
 
-* Run the cuGraph-PyG backend and benchmark on a supported GPU; compare
-  quality (not batches) with the PyG sampler given the different temporal rule.
+* File the cuGraph-PyG report and re-test 2-hop temporal sampling on a
+  datacenter GPU and a larger graph, where GPU sampling is designed to pay off.
 * Relative temporal encoding (HGT's RTE) or time-aware message functions, so
   recency matters beyond the sampling cut-off.
 * Longer collection (several months before October 2025) and multiple test

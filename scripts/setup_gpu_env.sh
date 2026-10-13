@@ -24,8 +24,17 @@ if [ ! -x "$VENV/bin/python" ]; then
     exit 1
   fi
   python3 -m venv "$VENV"
-  "$VENV/bin/pip" install --no-cache-dir --upgrade pip
-  "$VENV/bin/pip" install --no-cache-dir -r requirements/graph-cugraph-cu12.txt
+  if command -v uv >/dev/null 2>&1; then
+    # uv unpacks into its cache and hard-links into the venv: peak disk use is
+    # about the installed size (~10 GB). pip keeps every downloaded wheel
+    # (~6 GB compressed) until the end, so its peak is ~16 GB.
+    UV_HTTP_TIMEOUT=300 UV_CONCURRENT_DOWNLOADS=4 uv pip install --python "$VENV/bin/python" \
+        --link-mode hardlink --index-strategy unsafe-best-match -r requirements/graph-cugraph-cu12.txt
+  else
+    echo "uv not found: falling back to pip (needs ~16 GB free during the install)" >&2
+    "$VENV/bin/pip" install --no-cache-dir --upgrade pip
+    "$VENV/bin/pip" install --no-cache-dir -r requirements/graph-cugraph-cu12.txt
+  fi
 fi
 
 "$VENV/bin/python" - <<'PY'
@@ -38,13 +47,16 @@ print("cuGraph backend available:", ok, "-", reason)
 assert ok, reason
 PY
 
-"$VENV/bin/python" -m pytest tests/ml -q -m cugraph -rs
-"$VENV/bin/python" -m pytest tests/ml -q -m "not slow"
+# 2 tests must pass (seed alignment, 1-hop temporal correctness); the 2-hop
+# temporal test is a strict xfail documenting a cugraph-pyg 26.10 issue.
+PYTHONPATH=. "$VENV/bin/python" -m pytest tests/ml -q -m cugraph -rxs
+PYTHONPATH=. "$VENV/bin/python" -m pytest tests/ml -q -m "not slow"
+PYTHONPATH=. "$VENV/bin/python" scripts/cugraph_temporal_check.py --seeds 60
 
 if [ "${1:-}" != "--no-bench" ]; then
   # PyG sampler + model on the GPU, then cuGraph sampler + model on the GPU, same graphs.
-  "$VENV/bin/python" -m benchmarks.sampling_throughput --backend pyg --device cuda \
+  PYTHONPATH=. "$VENV/bin/python" -m benchmarks.sampling_throughput --backend pyg --device cuda \
       --scales 2000 20000 --task data/gharchive/task_pr_merge_48h.pt --batches 20 --tag pyg_cuda
-  "$VENV/bin/python" -m benchmarks.sampling_throughput --backend cugraph --device cuda \
+  PYTHONPATH=. "$VENV/bin/python" -m benchmarks.sampling_throughput --backend cugraph --device cuda \
       --scales 2000 20000 --task data/gharchive/task_pr_merge_48h.pt --batches 20 --tag cugraph_cuda
 fi
