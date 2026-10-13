@@ -1,0 +1,891 @@
+{
+  "environment": {
+    "backend": "cugraph",
+    "sampling": "pylibcugraph on GPU (temporal: monotonically_decreasing)",
+    "feature_gather": "WholeGraph FeatureStore",
+    "model_device": "cuda",
+    "torch": "2.8.0+cu129",
+    "cugraph_pyg": "26.10.00",
+    "gpu": "NVIDIA GeForce GTX 1650 with Max-Q Design"
+  },
+  "host": {
+    "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "cpu": "11th Gen Intel(R) Core(TM) i5-11300H @ 3.10GHz"
+  },
+  "rows": [
+    {
+      "graph": "task:task_pr_merge_48h.pt",
+      "num_nodes": 1387329,
+      "num_edges": 12353872,
+      "graph_mb": 395.9679527282715,
+      "train_seeds": 40000,
+      "build_or_load_seconds": 0.12841658700017433,
+      "backend_setup_seconds": 0.8555653980001807,
+      "fanout": [
+        5,
+        3
+      ],
+      "batch_size": 256,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 3.085975182999846,
+        "seeds_per_s": 1659.1189806727152,
+        "nodes_per_s": 36143.518137944004,
+        "edges_per_s": 34481.158690512166,
+        "mean_nodes_per_batch": 5576.9,
+        "mean_edges_per_batch": 5320.4,
+        "ms_per_batch": 154.2987591499923,
+        "invalid_edges_dropped": 10
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 1394.5884095010028,
+          "ms_per_batch": 183.56670559996928,
+          "sampling_share": 0.9003741003019549
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 1379.0243926772846,
+          "ms_per_batch": 185.63848570001937,
+          "sampling_share": 0.8675450319080241
+        }
+      ],
+      "peak_rss_mb": 2744.125,
+      "cuda_peak_mb": 520.861328125
+    },
+    {
+      "graph": "task:task_pr_merge_48h.pt",
+      "num_nodes": 1387329,
+      "num_edges": 12353872,
+      "graph_mb": 395.9679527282715,
+      "train_seeds": 40000,
+      "build_or_load_seconds": 0.12841658700017433,
+      "backend_setup_seconds": 0.8555653980001807,
+      "fanout": [
+        5,
+        3
+      ],
+      "batch_size": 1024,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 4.049573151000004,
+        "seeds_per_s": 5057.323139092488,
+        "nodes_per_s": 100472.31765637503,
+        "edges_per_s": 95411.04348358013,
+        "mean_nodes_per_batch": 20343.5,
+        "mean_edges_per_batch": 19318.7,
+        "ms_per_batch": 202.4786575500002,
+        "invalid_edges_dropped": 16
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 4515.221860120579,
+          "ms_per_batch": 226.78841300007662,
+          "sampling_share": 0.8560535965298285
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 3923.670897319634,
+          "ms_per_batch": 260.98009410002305,
+          "sampling_share": 0.7423934839480795
+        }
+      ],
+      "peak_rss_mb": 2752.265625,
+      "cuda_peak_mb": 520.861328125
+    },
+    {
+      "graph": "task:task_pr_merge_48h.pt",
+      "num_nodes": 1387329,
+      "num_edges": 12353872,
+      "graph_mb": 395.9679527282715,
+      "train_seeds": 40000,
+      "build_or_load_seconds": 0.12841658700017433,
+      "backend_setup_seconds": 0.8555653980001807,
+      "fanout": [
+        10,
+        5
+      ],
+      "batch_size": 256,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 3.4394861750001837,
+        "seeds_per_s": 1488.594440999527,
+        "nodes_per_s": 42302.83030574828,
+        "edges_per_s": 40811.32845373118,
+        "mean_nodes_per_batch": 7275.0,
+        "mean_edges_per_batch": 7018.5,
+        "ms_per_batch": 171.9743087500092,
+        "invalid_edges_dropped": 10
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 1281.5515898883361,
+          "ms_per_batch": 199.7578576000251,
+          "sampling_share": 0.9055734656622378
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 1258.6950463278952,
+          "ms_per_batch": 203.385244699939,
+          "sampling_share": 0.8589280523160264
+        }
+      ],
+      "peak_rss_mb": 2752.390625,
+      "cuda_peak_mb": 520.861328125
+    },
+    {
+      "graph": "task:task_pr_merge_48h.pt",
+      "num_nodes": 1387329,
+      "num_edges": 12353872,
+      "graph_mb": 395.9679527282715,
+      "train_seeds": 40000,
+      "build_or_load_seconds": 0.12841658700017433,
+      "backend_setup_seconds": 0.8555653980001807,
+      "fanout": [
+        10,
+        5
+      ],
+      "batch_size": 1024,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 4.583479190000162,
+        "seeds_per_s": 4468.221442933894,
+        "nodes_per_s": 115558.28619350212,
+        "edges_per_s": 111087.44665206652,
+        "mean_nodes_per_batch": 26482.95,
+        "mean_edges_per_batch": 25458.35,
+        "ms_per_batch": 229.1739595000081,
+        "invalid_edges_dropped": 12
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 3679.3147309642945,
+          "ms_per_batch": 278.3126954001091,
+          "sampling_share": 0.8532707466276985
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 3125.313963959776,
+          "ms_per_batch": 327.6470817999325,
+          "sampling_share": 0.7354288549624195
+        }
+      ],
+      "peak_rss_mb": 2755.515625,
+      "cuda_peak_mb": 643.0048828125
+    },
+    {
+      "graph": "task:task_pr_merge_48h.pt",
+      "num_nodes": 1387329,
+      "num_edges": 12353872,
+      "graph_mb": 395.9679527282715,
+      "train_seeds": 40000,
+      "build_or_load_seconds": 0.12841658700017433,
+      "backend_setup_seconds": 0.8555653980001807,
+      "fanout": [
+        20,
+        10
+      ],
+      "batch_size": 256,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 4.097134053000445,
+        "seeds_per_s": 1249.6540102832323,
+        "nodes_per_s": 50152.86230371668,
+        "edges_per_s": 48902.72014733568,
+        "mean_nodes_per_batch": 10274.15,
+        "mean_edges_per_batch": 10018.05,
+        "ms_per_batch": 204.85670265002227,
+        "invalid_edges_dropped": 2
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 1102.068067190431,
+          "ms_per_batch": 232.29055230012818,
+          "sampling_share": 0.9096833087172708
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 1068.7154038925157,
+          "ms_per_batch": 239.53991779999342,
+          "sampling_share": 0.8417217645888053
+        }
+      ],
+      "peak_rss_mb": 2755.640625,
+      "cuda_peak_mb": 643.0048828125
+    },
+    {
+      "graph": "task:task_pr_merge_48h.pt",
+      "num_nodes": 1387329,
+      "num_edges": 12353872,
+      "graph_mb": 395.9679527282715,
+      "train_seeds": 40000,
+      "build_or_load_seconds": 0.12841658700017433,
+      "backend_setup_seconds": 0.8555653980001807,
+      "fanout": [
+        20,
+        10
+      ],
+      "batch_size": 1024,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 5.540514413999972,
+        "seeds_per_s": 3696.407674393987,
+        "nodes_per_s": 131798.4117422068,
+        "edges_per_s": 128101.10162453294,
+        "mean_nodes_per_batch": 36511.55,
+        "mean_edges_per_batch": 35487.3,
+        "ms_per_batch": 277.0257206999986,
+        "invalid_edges_dropped": 5
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 3098.589873507973,
+          "ms_per_batch": 330.4729059998863,
+          "sampling_share": 0.8351259860922393
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 2558.1684562702426,
+          "ms_per_batch": 400.28638359999604,
+          "sampling_share": 0.6849786328829297
+        }
+      ],
+      "peak_rss_mb": 2760.890625,
+      "cuda_peak_mb": 894.8388671875
+    },
+    {
+      "graph": "task:task_pr_merge_48h.pt",
+      "num_nodes": 1387329,
+      "num_edges": 12353872,
+      "graph_mb": 395.9679527282715,
+      "train_seeds": 40000,
+      "build_or_load_seconds": 0.12841658700017433,
+      "backend_setup_seconds": 0.8555653980001807,
+      "fanout": [
+        10,
+        5
+      ],
+      "batch_size": 256,
+      "temporal": false,
+      "sampling": {
+        "batches": 20,
+        "seconds": 1.1004949530001795,
+        "seeds_per_s": 4652.452049908824,
+        "nodes_per_s": 183764.58651507055,
+        "edges_per_s": 323996.9424920587,
+        "mean_nodes_per_batch": 10111.6,
+        "mean_edges_per_batch": 17827.85,
+        "ms_per_batch": 55.024747650008976,
+        "invalid_edges_dropped": 0
+      },
+      "train_step": []
+    },
+    {
+      "graph": "synthetic:2000_users",
+      "num_nodes": 12910,
+      "num_edges": 217026,
+      "graph_mb": 6.413291931152344,
+      "train_seeds": 2982,
+      "build_or_load_seconds": 1.7171951870000157,
+      "backend_setup_seconds": 0.05858717199998864,
+      "fanout": [
+        5,
+        3
+      ],
+      "batch_size": 256,
+      "temporal": true,
+      "sampling": {
+        "batches": 10,
+        "seconds": 0.4442200949997641,
+        "seeds_per_s": 5560.306766404414,
+        "nodes_per_s": 82792.29241085892,
+        "edges_per_s": 77231.98564445451,
+        "mean_nodes_per_batch": 3677.8,
+        "mean_edges_per_batch": 3430.8,
+        "ms_per_batch": 44.42200949997641,
+        "invalid_edges_dropped": 0
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 4025.417581790201,
+          "ms_per_batch": 61.360093699931895,
+          "sampling_share": 0.721576502416926
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 3818.9549658245332,
+          "ms_per_batch": 64.67737960001614,
+          "sampling_share": 0.6962536667143754
+        }
+      ],
+      "peak_rss_mb": 2769.5078125,
+      "cuda_peak_mb": 894.8388671875
+    },
+    {
+      "graph": "synthetic:2000_users",
+      "num_nodes": 12910,
+      "num_edges": 217026,
+      "graph_mb": 6.413291931152344,
+      "train_seeds": 2982,
+      "build_or_load_seconds": 1.7171951870000157,
+      "backend_setup_seconds": 0.05858717199998864,
+      "fanout": [
+        5,
+        3
+      ],
+      "batch_size": 1024,
+      "temporal": true,
+      "sampling": {
+        "batches": 1,
+        "seconds": 0.04665004600019529,
+        "seeds_per_s": 20021.41648469307,
+        "nodes_per_s": 121221.74541856458,
+        "edges_per_s": 101178.89272778512,
+        "mean_nodes_per_batch": 5655.0,
+        "mean_edges_per_batch": 4720.0,
+        "ms_per_batch": 46.65004600019529,
+        "invalid_edges_dropped": 1
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 1,
+          "seeds_per_s": 14061.400112268042,
+          "ms_per_batch": 66.4229730000443,
+          "sampling_share": 0.7093961301589095
+        },
+        {
+          "encoder": "hgt",
+          "batches": 1,
+          "seeds_per_s": 13024.749771760946,
+          "ms_per_batch": 71.70963099997607,
+          "sampling_share": 0.6651601233294697
+        }
+      ],
+      "peak_rss_mb": 2770.6328125,
+      "cuda_peak_mb": 894.8388671875
+    },
+    {
+      "graph": "synthetic:2000_users",
+      "num_nodes": 12910,
+      "num_edges": 217026,
+      "graph_mb": 6.413291931152344,
+      "train_seeds": 2982,
+      "build_or_load_seconds": 1.7171951870000157,
+      "backend_setup_seconds": 0.05858717199998864,
+      "fanout": [
+        10,
+        5
+      ],
+      "batch_size": 256,
+      "temporal": true,
+      "sampling": {
+        "batches": 10,
+        "seconds": 0.4576259079999545,
+        "seeds_per_s": 5397.421686187063,
+        "nodes_per_s": 93386.32112586653,
+        "edges_per_s": 87988.89943967946,
+        "mean_nodes_per_batch": 4273.6,
+        "mean_edges_per_batch": 4026.6,
+        "ms_per_batch": 45.76259079999545,
+        "invalid_edges_dropped": 0
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 3772.7697441597315,
+          "ms_per_batch": 65.46914249997826,
+          "sampling_share": 0.7178360904908728
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 3507.748117832862,
+          "ms_per_batch": 70.41554630000064,
+          "sampling_share": 0.6936457240833875
+        }
+      ],
+      "peak_rss_mb": 2770.7578125,
+      "cuda_peak_mb": 894.8388671875
+    },
+    {
+      "graph": "synthetic:2000_users",
+      "num_nodes": 12910,
+      "num_edges": 217026,
+      "graph_mb": 6.413291931152344,
+      "train_seeds": 2982,
+      "build_or_load_seconds": 1.7171951870000157,
+      "backend_setup_seconds": 0.05858717199998864,
+      "fanout": [
+        10,
+        5
+      ],
+      "batch_size": 1024,
+      "temporal": true,
+      "sampling": {
+        "batches": 1,
+        "seconds": 0.05054374999963329,
+        "seeds_per_s": 18479.040435400548,
+        "nodes_per_s": 118906.88759824121,
+        "edges_per_s": 100427.84716284066,
+        "mean_nodes_per_batch": 6010.0,
+        "mean_edges_per_batch": 5076.0,
+        "ms_per_batch": 50.54374999963329,
+        "invalid_edges_dropped": 0
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 1,
+          "seeds_per_s": 13768.935880242218,
+          "ms_per_batch": 67.83385499966244,
+          "sampling_share": 0.7292990940893765
+        },
+        {
+          "encoder": "hgt",
+          "batches": 1,
+          "seeds_per_s": 12202.053357319293,
+          "ms_per_batch": 76.54449400024532,
+          "sampling_share": 0.6622352353651451
+        }
+      ],
+      "peak_rss_mb": 2771.0078125,
+      "cuda_peak_mb": 894.8388671875
+    },
+    {
+      "graph": "synthetic:2000_users",
+      "num_nodes": 12910,
+      "num_edges": 217026,
+      "graph_mb": 6.413291931152344,
+      "train_seeds": 2982,
+      "build_or_load_seconds": 1.7171951870000157,
+      "backend_setup_seconds": 0.05858717199998864,
+      "fanout": [
+        20,
+        10
+      ],
+      "batch_size": 256,
+      "temporal": true,
+      "sampling": {
+        "batches": 10,
+        "seconds": 0.47200022200013336,
+        "seeds_per_s": 5233.048386149492,
+        "nodes_per_s": 101156.73208303387,
+        "edges_per_s": 95923.68369688439,
+        "mean_nodes_per_batch": 4774.6,
+        "mean_edges_per_batch": 4527.6,
+        "ms_per_batch": 47.200022200013336,
+        "invalid_edges_dropped": 0
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 3747.029421063845,
+          "ms_per_batch": 65.91888460002338,
+          "sampling_share": 0.721007381852148
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 3446.9689444930837,
+          "ms_per_batch": 71.65715849996559,
+          "sampling_share": 0.6710494137165399
+        }
+      ],
+      "peak_rss_mb": 2771.1328125,
+      "cuda_peak_mb": 894.8388671875
+    },
+    {
+      "graph": "synthetic:2000_users",
+      "num_nodes": 12910,
+      "num_edges": 217026,
+      "graph_mb": 6.413291931152344,
+      "train_seeds": 2982,
+      "build_or_load_seconds": 1.7171951870000157,
+      "backend_setup_seconds": 0.05858717199998864,
+      "fanout": [
+        20,
+        10
+      ],
+      "batch_size": 1024,
+      "temporal": true,
+      "sampling": {
+        "batches": 1,
+        "seconds": 0.051614155000152095,
+        "seeds_per_s": 18095.811119977607,
+        "nodes_per_s": 122563.27745715025,
+        "edges_per_s": 104467.46633717263,
+        "mean_nodes_per_batch": 6326.0,
+        "mean_edges_per_batch": 5392.0,
+        "ms_per_batch": 51.614155000152095,
+        "invalid_edges_dropped": 0
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 1,
+          "seeds_per_s": 12552.558968844573,
+          "ms_per_batch": 74.40713899995899,
+          "sampling_share": 0.7547273387281622
+        },
+        {
+          "encoder": "hgt",
+          "batches": 1,
+          "seeds_per_s": 11865.28867729421,
+          "ms_per_batch": 78.71700599980613,
+          "sampling_share": 0.6709533261474109
+        }
+      ],
+      "peak_rss_mb": 2771.2578125,
+      "cuda_peak_mb": 894.8388671875
+    },
+    {
+      "graph": "synthetic:2000_users",
+      "num_nodes": 12910,
+      "num_edges": 217026,
+      "graph_mb": 6.413291931152344,
+      "train_seeds": 2982,
+      "build_or_load_seconds": 1.7171951870000157,
+      "backend_setup_seconds": 0.05858717199998864,
+      "fanout": [
+        10,
+        5
+      ],
+      "batch_size": 256,
+      "temporal": false,
+      "sampling": {
+        "batches": 10,
+        "seconds": 0.2911488919999101,
+        "seeds_per_s": 8483.6318044472,
+        "nodes_per_s": 238812.51796081525,
+        "edges_per_s": 684378.355800377,
+        "mean_nodes_per_batch": 6953.0,
+        "mean_edges_per_batch": 19925.6,
+        "ms_per_batch": 29.114889199991012,
+        "invalid_edges_dropped": 0
+      },
+      "train_step": []
+    },
+    {
+      "graph": "synthetic:20000_users",
+      "num_nodes": 126578,
+      "num_edges": 2153982,
+      "graph_mb": 63.423622131347656,
+      "train_seeds": 29147,
+      "build_or_load_seconds": 16.74946578900017,
+      "backend_setup_seconds": 0.10890653199976441,
+      "fanout": [
+        5,
+        3
+      ],
+      "batch_size": 256,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 0.9146461739996994,
+        "seeds_per_s": 5597.793054346372,
+        "nodes_per_s": 142332.6349584039,
+        "edges_per_s": 136720.62875763047,
+        "mean_nodes_per_batch": 6509.2,
+        "mean_edges_per_batch": 6252.55,
+        "ms_per_batch": 45.73230869998497,
+        "invalid_edges_dropped": 13
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 4034.1136309734834,
+          "ms_per_batch": 63.45879750001586,
+          "sampling_share": 0.7141090973237462
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 3495.40735764425,
+          "ms_per_batch": 73.23896010007047,
+          "sampling_share": 0.6265732765361149
+        }
+      ],
+      "peak_rss_mb": 2775.5078125,
+      "cuda_peak_mb": 894.8388671875
+    },
+    {
+      "graph": "synthetic:20000_users",
+      "num_nodes": 126578,
+      "num_edges": 2153982,
+      "graph_mb": 63.423622131347656,
+      "train_seeds": 29147,
+      "build_or_load_seconds": 16.74946578900017,
+      "backend_setup_seconds": 0.10890653199976441,
+      "fanout": [
+        5,
+        3
+      ],
+      "batch_size": 1024,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 1.2369877920000363,
+        "seeds_per_s": 16556.347712119863,
+        "nodes_per_s": 336928.95168037986,
+        "edges_per_s": 320350.776752038,
+        "mean_nodes_per_batch": 20838.85,
+        "mean_edges_per_batch": 19813.5,
+        "ms_per_batch": 61.849389600001814,
+        "invalid_edges_dropped": 27
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 10594.708564890774,
+          "ms_per_batch": 96.65202149999459,
+          "sampling_share": 0.6690270984136071
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 7881.306198675311,
+          "ms_per_batch": 129.92770160003602,
+          "sampling_share": 0.4964450660302205
+        }
+      ],
+      "peak_rss_mb": 2783.1328125,
+      "cuda_peak_mb": 894.8388671875
+    },
+    {
+      "graph": "synthetic:20000_users",
+      "num_nodes": 126578,
+      "num_edges": 2153982,
+      "graph_mb": 63.423622131347656,
+      "train_seeds": 29147,
+      "build_or_load_seconds": 16.74946578900017,
+      "backend_setup_seconds": 0.10890653199976441,
+      "fanout": [
+        10,
+        5
+      ],
+      "batch_size": 256,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 1.0117452450003839,
+        "seeds_per_s": 5060.562454136424,
+        "nodes_per_s": 175590.64485638635,
+        "edges_per_s": 170506.36101574617,
+        "mean_nodes_per_batch": 8882.65,
+        "mean_edges_per_batch": 8625.45,
+        "ms_per_batch": 50.587262250019194,
+        "invalid_edges_dropped": 24
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 3717.243289119727,
+          "ms_per_batch": 68.86823920008283,
+          "sampling_share": 0.7368813561882857
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 2993.0978252163527,
+          "ms_per_batch": 85.53011460007838,
+          "sampling_share": 0.6069147369055923
+        }
+      ],
+      "peak_rss_mb": 2783.2578125,
+      "cuda_peak_mb": 894.8388671875
+    },
+    {
+      "graph": "synthetic:20000_users",
+      "num_nodes": 126578,
+      "num_edges": 2153982,
+      "graph_mb": 63.423622131347656,
+      "train_seeds": 29147,
+      "build_or_load_seconds": 16.74946578900017,
+      "backend_setup_seconds": 0.10890653199976441,
+      "fanout": [
+        10,
+        5
+      ],
+      "batch_size": 1024,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 1.4948354849998395,
+        "seeds_per_s": 13700.504306667699,
+        "nodes_per_s": 365406.7658154761,
+        "edges_per_s": 351615.28159739694,
+        "mean_nodes_per_batch": 27311.15,
+        "mean_edges_per_batch": 26280.35,
+        "ms_per_batch": 74.74177424999198,
+        "invalid_edges_dropped": 136
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 8701.988597557878,
+          "ms_per_batch": 117.67425209995963,
+          "sampling_share": 0.6575154192121504
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 6281.530330119855,
+          "ms_per_batch": 163.0176002000553,
+          "sampling_share": 0.47154707163940096
+        }
+      ],
+      "peak_rss_mb": 2784.8828125,
+      "cuda_peak_mb": 894.8388671875
+    },
+    {
+      "graph": "synthetic:20000_users",
+      "num_nodes": 126578,
+      "num_edges": 2153982,
+      "graph_mb": 63.423622131347656,
+      "train_seeds": 29147,
+      "build_or_load_seconds": 16.74946578900017,
+      "backend_setup_seconds": 0.10890653199976441,
+      "fanout": [
+        20,
+        10
+      ],
+      "batch_size": 256,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 1.219961757999954,
+        "seeds_per_s": 4196.852865612688,
+        "nodes_per_s": 198549.66634126997,
+        "edges_per_s": 194323.30435394595,
+        "mean_nodes_per_batch": 12111.15,
+        "mean_edges_per_batch": 11853.35,
+        "ms_per_batch": 60.9980878999977,
+        "invalid_edges_dropped": 36
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 3100.5904502802236,
+          "ms_per_batch": 82.56491920010376,
+          "sampling_share": 0.738400936992784
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 2530.6605640528555,
+          "ms_per_batch": 101.15935879998688,
+          "sampling_share": 0.5878122420447593
+        }
+      ],
+      "peak_rss_mb": 2785.1328125,
+      "cuda_peak_mb": 894.8388671875
+    },
+    {
+      "graph": "synthetic:20000_users",
+      "num_nodes": 126578,
+      "num_edges": 2153982,
+      "graph_mb": 63.423622131347656,
+      "train_seeds": 29147,
+      "build_or_load_seconds": 16.74946578900017,
+      "backend_setup_seconds": 0.10890653199976441,
+      "fanout": [
+        20,
+        10
+      ],
+      "batch_size": 1024,
+      "temporal": true,
+      "sampling": {
+        "batches": 20,
+        "seconds": 1.60912000099961,
+        "seeds_per_s": 12727.453507058211,
+        "nodes_per_s": 406627.846023622,
+        "edges_per_s": 393861.86213973584,
+        "mean_nodes_per_batch": 32715.65,
+        "mean_edges_per_batch": 31688.55,
+        "ms_per_batch": 80.4560000499805,
+        "invalid_edges_dropped": 62
+      },
+      "train_step": [
+        {
+          "encoder": "sage",
+          "batches": 10,
+          "seeds_per_s": 7828.274368229596,
+          "ms_per_batch": 130.80788330003088,
+          "sampling_share": 0.6401098052170109
+        },
+        {
+          "encoder": "hgt",
+          "batches": 10,
+          "seeds_per_s": 5525.448471419103,
+          "ms_per_batch": 185.32432350002637,
+          "sampling_share": 0.44551610949219306
+        }
+      ],
+      "peak_rss_mb": 2789.1328125,
+      "cuda_peak_mb": 894.8388671875
+    },
+    {
+      "graph": "synthetic:20000_users",
+      "num_nodes": 126578,
+      "num_edges": 2153982,
+      "graph_mb": 63.423622131347656,
+      "train_seeds": 29147,
+      "build_or_load_seconds": 16.74946578900017,
+      "backend_setup_seconds": 0.10890653199976441,
+      "fanout": [
+        10,
+        5
+      ],
+      "batch_size": 256,
+      "temporal": false,
+      "sampling": {
+        "batches": 20,
+        "seconds": 0.6328714179999224,
+        "seeds_per_s": 8090.1109678500725,
+        "nodes_per_s": 449513.1110503633,
+        "edges_per_s": 865283.1909057191,
+        "mean_nodes_per_batch": 14224.2,
+        "mean_edges_per_batch": 27380.65,
+        "ms_per_batch": 31.64357089999612,
+        "invalid_edges_dropped": 0
+      },
+      "train_step": []
+    }
+  ]
+}

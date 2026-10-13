@@ -1,0 +1,52 @@
+{
+  "graph": "GH Archive PR graph (1.39M nodes, 12.35M edges)",
+  "fanout": [
+    10,
+    5
+  ],
+  "batch_size": 1024,
+  "gpu": "NVIDIA GeForce GTX 1650 with Max-Q Design",
+  "power_profile": "performance",
+  "rows": [
+    {
+      "sampler": "pyg-lib (CPU, 4 threads)",
+      "seeds_per_call": null,
+      "seeds": 40000,
+      "seconds": 0.46042148299966357,
+      "seeds_per_s": 86876.91925102728,
+      "invalid_edges": 0
+    },
+    {
+      "sampler": "cuGraph-PyG (GPU)",
+      "seeds_per_call": 1024,
+      "seeds": 40000,
+      "seconds": 9.175892769999336,
+      "seeds_per_s": 4359.248849417721,
+      "invalid_edges": 21
+    },
+    {
+      "sampler": "cuGraph-PyG (GPU)",
+      "seeds_per_call": 4096,
+      "seeds": 40000,
+      "seconds": 4.524602141000287,
+      "seeds_per_s": 8840.55630826292,
+      "invalid_edges": 24
+    },
+    {
+      "sampler": "cuGraph-PyG (GPU)",
+      "seeds_per_call": 16384,
+      "seeds": 40000,
+      "seconds": 3.1012215119999382,
+      "seeds_per_s": 12898.143471926489,
+      "invalid_edges": 25
+    },
+    {
+      "sampler": "cuGraph-PyG (GPU)",
+      "seeds_per_call": 40960,
+      "seeds": 40000,
+      "seconds": 2.6812398909996773,
+      "seeds_per_s": 14918.471164878254,
+      "invalid_edges": 30
+    }
+  ]
+}

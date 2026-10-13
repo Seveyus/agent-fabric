@@ -412,7 +412,10 @@ class CuGraphBackend:
 
     name = "cugraph"
 
-    def __init__(self, data, device: str | torch.device = "cuda") -> None:
+    def __init__(self, data, device: str | torch.device = "cuda", seeds_per_call: int | None = None) -> None:
+        """seeds_per_call: seeds per cuGraph sampling call (several batches per call
+        amortise launch overhead); defaults to one batch per call."""
+        self.seeds_per_call = seeds_per_call
         ok, reason = cugraph_available()
         if not ok:
             raise RuntimeError(f"cuGraph backend unavailable: {reason}")
@@ -448,7 +451,7 @@ class CuGraphBackend:
             # with 30 edge types on a 4 GB GPU that is ~35 seeds, which floors to
             # 0 batches per call and crashes (torch.split with size 0). One batch
             # per call is always valid.
-            local_seeds_per_call=spec.batch_size,
+            local_seeds_per_call=max(spec.batch_size, self.seeds_per_call or 0),
             **kwargs,
         )
         return _AlignedSeedLoader(loader, seed_type, seeds, seed_time if spec.temporal else None)
