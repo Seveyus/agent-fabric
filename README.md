@@ -6,6 +6,13 @@ them) and asks whether graph learning predicts delivery outcomes better than
 simpler models. The same pipeline is applied to a synthetic **EV-fleet
 charging** problem to check that it carries over to industrial operations.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/figures/agent_fabric_overview_dark.svg">
+  <img alt="Agent Fabric overview: GH Archive to a temporal heterogeneous graph (1.39 M nodes, 12.4 M timestamped edges), time-respecting sampling, HeteroSAGE / HGT / JEPA; test ROC-AUC per model with and without hand-built history features; GPU, infrastructure and EV-fleet results." src="docs/figures/agent_fabric_overview_light.svg">
+</picture>
+
+<sub>Generated from `experiments/results/` by `docs/figures/make_overview.py` (PNG versions for slides: `docs/figures/*.png`).</sub>
+
 The repository has two parts:
 
 * **Graph-learning pipeline** (this README): GH Archive ingestion, a temporal
